@@ -1,3 +1,5 @@
+
+# Weibo-Analyst
 微博评论爬虫与分析系统
 这是一个用于爬取微博评论、存储到数据库，并进行文本分析和关键词提取的Python工具集。
 
@@ -116,6 +118,5 @@ keywords/data_keywords_{id}.dat - 关键词提取结果
 
 
 许可证
-本项目采用 MIT 许可证 - 详情请参阅 LICENSE 文件
+本项目采用 MIT 许可证 - 详情请参阅 LICENSE.md文件
 
-# Weibo-Analyst
