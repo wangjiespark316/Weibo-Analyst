@@ -118,5 +118,5 @@ keywords/data_keywords_{id}.dat - 关键词提取结果
 
 
 许可证
-本项目采用 MIT 许可证 - 详情请参阅 LICENSE.md文件
+本项目采用 MIT 许可证 - 详情请参阅 LICENSE.md(https://github.com/wangjiespark316/Weibo-Analyst/blob/main/LICENSE.md)文件
 
