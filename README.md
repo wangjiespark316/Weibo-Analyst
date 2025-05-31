@@ -124,4 +124,4 @@ keywords/data_keywords_{id}.dat	关键词提取结果
 欢迎提交 Issue 和 Pull Request！对于新功能、Bug 修复等，欢迎一起完善本项目。
 
 📄 许可证
-本项目采用 [MIT 许可证](https://github.com/wangjiespark316/Weibo-Analyst/blob/main/LICENSE.md) - 详情请参阅 LICENSE.md 文件。
+本项目采用 [MIT 许可证](https://github.com/wangjiespark316/Weibo-Analyst/blob/main/LICENSE.md) - 详情请参阅 [LICENSE.md](https://github.com/wangjiespark316/Weibo-Analyst/blob/main/LICENSE.md) 文件。
