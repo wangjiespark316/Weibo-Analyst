@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-微博评论情感分析 - 终极字体修复版
+微博评论情感分析 - 适配实际数据库结构
 """
-#训练情感分析模型 的，使用的是 SnowNLP 中的 sentiment 模块。它让你可以基于自己的中文正负面文本来训练一个新的情感分类模型。
-#from snownlp import sentiment  
+import os
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# 导入其他模块
 from snownlp import SnowNLP
 import matplotlib.pyplot as plt
-import os
 import logging
 import pymysql
 import numpy as np
 import matplotlib as mpl
-import shutil
 import warnings
 
 # -------------------- 全局字体配置 --------------------
@@ -25,9 +24,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib.font_
 mpl.rcParams['font.family'] = 'sans-serif'
 mpl.rcParams['font.sans-serif'] = ['DejaVu Sans']
 mpl.rcParams['axes.unicode_minus'] = False
-
-# 确定脚本所在目录
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 字体路径配置
 FONT_PATHS = [
@@ -53,7 +49,7 @@ CHINESE_FONTS = [
 ]
 
 def setup_chinese_font():
-    """配置中文字体支持 - 终极优化版"""
+    """配置中文字体支持"""
     import matplotlib.font_manager as fm
     from matplotlib import rcParams
     
@@ -96,10 +92,6 @@ def setup_chinese_font():
     rcParams['axes.unicode_minus'] = False
     return fm.FontProperties(family='DejaVu Sans')
 
-# 初始化字体
-chinese_font = setup_chinese_font()
-# -------------------- 字体配置结束 --------------------
-
 # 日志配置
 logging.basicConfig(
     level=logging.INFO,
@@ -109,6 +101,10 @@ logging.basicConfig(
         logging.FileHandler(os.path.join(SCRIPT_DIR, "sentiment_analysis.log"))
     ]
 )
+
+# 初始化字体
+chinese_font = setup_chinese_font()
+# -------------------- 字体配置结束 --------------------
 
 # 数据库配置
 DB_CONFIG = {
@@ -121,7 +117,7 @@ DB_CONFIG = {
 }
 
 def analyze_sentiment(weibo_ids):
-    """分析指定微博评论的情感倾向"""
+    """分析指定微博评论的情感倾向（适配实际数据库结构）"""
     try:
         # 确保输出目录存在
         output_dir = os.path.join(SCRIPT_DIR, "sentiment_results")
@@ -135,8 +131,9 @@ def analyze_sentiment(weibo_ids):
         for weibo_id in weibo_ids:
             logging.info(f"🔍 开始分析微博ID: {weibo_id}")
             
-            # 查询该微博的所有评论
+            # 构建表名
             table_name = f"comments_{weibo_id}"
+            logging.info(f"📝 使用评论表: {table_name}")
             
             # 检查表是否存在
             cursor.execute(f"SHOW TABLES LIKE '{table_name}'")

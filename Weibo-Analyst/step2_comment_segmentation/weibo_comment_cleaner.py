@@ -158,8 +158,15 @@ class WeiboCommentProcessor:
         
         for table_name, comments in tqdm(comments_by_table.items(), desc="处理表评论"):
             # 使用表名作为文件名基础
-            comments_file = os.path.join(output_dir, f"comments_{table_name}.txt")
-            word_freq_file = os.path.join(output_dir, f"word_freq_{table_name}.txt")
+            #comments_file = os.path.join(output_dir, f"comments_{table_name}.txt")
+            #word_freq_file = os.path.join(output_dir, f"word_freq_{table_name}.txt")
+
+            # 去除表名的前缀 'comments_' (输出的文件名从comments_comments_1.txt变为comments_1.txt)
+            table_suffix = table_name.replace("comments_", "")
+            comments_file = os.path.join(output_dir, f"comments_{table_suffix}.txt")
+            word_freq_file = os.path.join(output_dir, f"word_freq_{table_suffix}.txt")
+
+            
             
             # 词频统计
             word_freq = Counter()

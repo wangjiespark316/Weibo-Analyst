@@ -12,25 +12,54 @@ from wordcloud import WordCloud, ImageColorGenerator
 from PIL import Image
 import glob
 import os
+import argparse
 
-# ===== 重要修改：获取脚本所在目录 =====
+# ===== 获取脚本所在目录 =====
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ===== 创建输出目录 =====
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'output')  # 在脚本目录下创建output文件夹
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 设置中文字体 - 使用绝对路径
 font_path = os.path.join(SCRIPT_DIR, 'Songti.ttc')
-font = FontProperties(fname=font_path)
+if not os.path.exists(font_path):
+    print(f"警告：字体文件未找到: {font_path}")
+    print("请确保Songti.ttc字体文件存在于脚本目录")
+font = FontProperties(fname=font_path) if os.path.exists(font_path) else None
 bar_width = 0.5
 
+# ===== 添加命令行参数解析 =====
+parser = argparse.ArgumentParser(description='微博评论词云生成工具')
+parser.add_argument('--input_dir', type=str, default='/workspace/step2_comment_segmentation/weibo_comments',
+                    help='预处理输出目录，包含评论文件')
+args = parser.parse_args()
+
+DATA_DIR = args.input_dir
+
+# 如果找不到文件，显示错误信息
+if not os.path.exists(DATA_DIR):
+    print(f"错误：输入目录不存在: {DATA_DIR}")
+    print("请检查以下情况:")
+    print("1. 确保已运行预处理脚本")
+    print("2. 检查 --input_dir 参数是否正确")
+    exit(1)
+
 # 定义要处理的文件列表
-# 使用绝对路径确保准确性
-DATA_DIR = '/workspace/step2_cut_words/keywords'
-file_list = glob.glob(os.path.join(DATA_DIR, 'data_keywords_*.dat'))
+file_list = []
+# 匹配预处理脚本生成的所有评论文件
+patterns = ['comments_*.txt', 'all_comments.txt']
+for pattern in patterns:
+    file_list.extend(glob.glob(os.path.join(DATA_DIR, pattern)))
 
 # 如果找不到文件，显示错误信息
 if not file_list:
     print(f"错误：在 {DATA_DIR} 找不到任何数据文件！")
-    print("请检查以下目录是否存在：")
-    print(DATA_DIR)
+    print("请检查以下情况:")
+    print("1. 确保已运行预处理脚本")
+    print("2. 检查 --input_dir 参数是否正确")
+    print("3. 预处理输出目录应包含 comments_*.txt 或 all_comments.txt 文件")
+    print(f"目录内容: {os.listdir(DATA_DIR)}")
     exit(1)
 
 print(f"找到 {len(file_list)} 个数据文件:")
@@ -87,7 +116,7 @@ for file_path in file_list:
     
     try:
         wc = WordCloud(
-            font_path=font_path,  # 关键修正：使用变量而不是字符串
+            font_path=font_path if os.path.exists(font_path) else None,
             background_color='White',
             max_words=50,
             mask=graph,
@@ -109,10 +138,14 @@ for file_path in file_list:
         plt.figure(figsize=(16, 9))
         plt.imshow(wc_image)
         plt.axis("off")
-        plt.title(f"关键词词云 - {file_id}", fontproperties=font, fontsize=16)
+        title = f"关键词词云 - {file_id}"
+        if font:
+            plt.title(title, fontproperties=font, fontsize=16)
+        else:
+            plt.title(title, fontsize=16)
         
-        # 保存词云图到脚本目录
-        cloud_output = os.path.join(SCRIPT_DIR, f'output_cloud_{file_id}.png')
+        # 保存词云图到输出目录
+        cloud_output = os.path.join(OUTPUT_DIR, f'output_cloud_{file_id}.png')
         plt.savefig(cloud_output, bbox_inches='tight', dpi=300)
         print(f"词云图已保存至: {cloud_output}")
         plt.close()
@@ -132,12 +165,20 @@ for file_path in file_list:
         
         plt.figure(figsize=(28, 10))
         plt.bar(range(num), Y, tick_label=X, width=bar_width)
-        plt.xticks(rotation=50, fontproperties=font, fontsize=20)
+        plt.xticks(rotation=50, fontsize=20)
+        # 设置条形图的刻度字体
+        if font:
+            for label in plt.gca().get_xticklabels():
+                label.set_fontproperties(font)
         plt.yticks(fontsize=20)
-        plt.title(f"关键词频率分布 - {file_id}", fontproperties=font, fontsize=30)
+        title = f"关键词频率分布 - {file_id}"
+        if font:
+            plt.title(title, fontproperties=font, fontsize=30)
+        else:
+            plt.title(title, fontsize=30)
         
-        # 保存条形图到脚本目录
-        bar_output = os.path.join(SCRIPT_DIR, f'output_barchart_{file_id}.jpg')
+        # 保存条形图到输出目录
+        bar_output = os.path.join(OUTPUT_DIR, f'output_barchart_{file_id}.jpg')
         plt.savefig(bar_output, bbox_inches='tight', dpi=360)
         print(f"条形图已保存至: {bar_output}")
         plt.close()
@@ -146,3 +187,4 @@ for file_path in file_list:
         plt.close()
 
 print("\n所有文件处理完成!")
+print(f"输出文件保存在: {os.path.abspath(OUTPUT_DIR)}")
