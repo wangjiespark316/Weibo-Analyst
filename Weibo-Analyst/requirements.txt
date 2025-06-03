@@ -6,3 +6,6 @@ matplotlib
 scikit-learn
 jieba
 tqdm
+pymysql
+wordcloud
+snownlp

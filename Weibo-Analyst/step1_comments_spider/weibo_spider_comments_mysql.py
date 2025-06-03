@@ -366,7 +366,7 @@ def main():
         return
     
     # 需要爬取的微博ID列表
-    weibo_ids = [101, 102, 103, 104, 105]
+    weibo_ids = [1, 2, 3, 4, 5,]
     total_all_comments = 0
     
     for index in weibo_ids:
