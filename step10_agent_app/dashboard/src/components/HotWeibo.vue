@@ -1,29 +1,47 @@
 <template>
   <div class="hot-weibo">
-    <el-skeleton v-if="loading" :rows="4" animated />
-    <div v-else-if="error" class="error-state">
-      <el-empty description="数据暂时不可用，请稍后刷新">
-        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
-      </el-empty>
+    <!-- Loading -->
+    <div v-if="loading" class="hot-loading">
+      <div v-for="i in 5" :key="i" class="hot-skeleton">
+        <el-skeleton :rows="1" animated />
+      </div>
     </div>
-    <el-empty v-else-if="!data || data.length === 0" description="暂无热点数据" />
-    <div v-else class="weibo-list">
-      <div v-for="(item, index) in data.slice(0, 10)" :key="item.weibo_id || index" class="weibo-item">
-        <div class="weibo-rank" :class="{ top3: index < 3 }">{{ index + 1 }}</div>
-        <div class="weibo-content">
-          <div class="weibo-header">
-            <el-avatar :size="32" style="background:#409EFF">{{ (item.username || '?').charAt(0) }}</el-avatar>
-            <span class="username">{{ item.username }}</span>
-            <el-tag size="small" type="danger" effect="light" style="margin-left:auto">
-              热度 {{ item.hotspot_score?.toFixed(1) || '—' }}
-            </el-tag>
+
+    <!-- Error -->
+    <div v-else-if="error" class="error-state">
+      <el-icon :size="40" color="#CBD5E1"><Warning /></el-icon>
+      <div class="error-text">数据加载失败：{{ error }}</div>
+      <el-button size="small" type="primary" plain @click="$emit('retry')">重新加载</el-button>
+    </div>
+
+    <!-- Empty -->
+    <div v-else-if="!data || data.length === 0" class="error-state">
+      <el-icon :size="40" color="#CBD5E1"><Document /></el-icon>
+      <div class="error-text">暂无热点微博数据</div>
+    </div>
+
+    <!-- List -->
+    <div v-else class="hot-list">
+      <div v-for="(item, idx) in data" :key="item.weibo_id || idx" class="hot-item">
+        <div class="hot-rank">{{ idx + 1 }}</div>
+        <div class="hot-user">
+          <div class="hot-avatar" :style="{ background: avatarColor(item.username) }">
+            {{ (item.username || '?').charAt(0) }}
           </div>
-          <p class="weibo-text">{{ item.content }}</p>
-          <div class="weibo-stats">
-            <span><el-icon><Pointer /></el-icon> {{ formatNum(item.like_count) }}</span>
-            <span><el-icon><ChatDotRound /></el-icon> {{ formatNum(item.comment_count) }}</span>
-            <span><el-icon><Share /></el-icon> {{ formatNum(item.repost_count) }}</span>
-            <span class="publish-time">{{ item.publish_time }}</span>
+          <div>
+            <div class="hot-username">{{ item.username || '未知用户' }}</div>
+            <div class="hot-time">{{ formatTime(item.publish_time) }}</div>
+          </div>
+        </div>
+        <div class="hot-content">{{ item.content || item.text || '暂无内容' }}</div>
+        <div class="hot-right">
+          <div class="hot-score">
+            <el-icon :size="16" color="#F59E0B"><HotWater /></el-icon>
+            {{ formatScore(item.heat_score || item.hot_score) }}
+          </div>
+          <div class="hot-stats">
+            <span><el-icon :size="12"><Pointer /></el-icon>{{ formatNum(item.like_count) }}</span>
+            <span><el-icon :size="12"><ChatDotRound /></el-icon>{{ formatNum(item.comment_count) }}</span>
           </div>
         </div>
       </div>
@@ -32,94 +50,59 @@
 </template>
 
 <script setup>
-import { Pointer, ChatDotRound, Share } from '@element-plus/icons-vue'
+import { Warning, Document, HotWater, Pointer, ChatDotRound } from '@element-plus/icons-vue'
 
 defineProps({
   data: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   error: { type: String, default: null },
 })
-
 defineEmits(['retry'])
 
-function formatNum(num) {
-  if (num == null) return '0'
-  if (num >= 10000) return (num / 10000).toFixed(1) + '万'
-  return num.toLocaleString()
+const colors = [
+  'linear-gradient(135deg,#1D4ED8,#3B82F6)',
+  'linear-gradient(135deg,#10B981,#059669)',
+  'linear-gradient(135deg,#F59E0B,#D97706)',
+  'linear-gradient(135deg,#EF4444,#DC2626)',
+  'linear-gradient(135deg,#8B5CF6,#7C3AED)',
+  'linear-gradient(135deg,#06B6D4,#0891B2)',
+  'linear-gradient(135deg,#EC4899,#DB2777)',
+]
+
+function avatarColor(name) {
+  if (!name) return colors[0]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return colors[Math.abs(hash) % colors.length]
+}
+
+function formatNum(n) {
+  if (n == null) return '0'
+  if (n >= 10000) return (n / 10000).toFixed(1) + 'w'
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
+  return n.toLocaleString()
+}
+
+function formatScore(s) {
+  if (s == null) return '—'
+  return typeof s === 'number' ? s.toFixed(1) : s
+}
+
+function formatTime(t) {
+  if (!t) return ''
+  const d = new Date(t)
+  if (isNaN(d.getTime())) return t
+  const now = new Date()
+  const diff = now - d
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
+  return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 </script>
 
 <style scoped>
-.weibo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.weibo-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  background: #fafafa;
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-.weibo-item:hover {
-  background: #f0f7ff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
-}
-.weibo-rank {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: #c0c4cc;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-.weibo-rank.top3 {
-  background: linear-gradient(135deg, #f56c6c, #e6a23c);
-}
-.weibo-content {
-  flex: 1;
-  min-width: 0;
-}
-.weibo-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.username {
-  font-weight: 600;
-  color: #303133;
-  font-size: 14px;
-}
-.weibo-text {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.weibo-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: #909399;
-}
-.weibo-stats span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.publish-time {
-  margin-left: auto;
-}
+.hot-weibo { width: 100%; }
+.hot-loading { padding: 0 20px; }
+.hot-skeleton { padding: 16px 0; border-bottom: 1px solid var(--gray-100); }
+.hot-skeleton:last-child { border-bottom: none; }
 </style>

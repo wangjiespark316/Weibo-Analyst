@@ -2,29 +2,21 @@
   <div class="keyword-trend">
     <el-skeleton v-if="loading" :rows="4" animated />
     <div v-else-if="error" class="error-state">
-      <el-empty description="数据暂时不可用，请稍后刷新">
-        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
-      </el-empty>
+      <el-icon :size="40" color="#CBD5E1"><Warning /></el-icon>
+      <div class="error-text">趋势数据加载失败</div>
+      <el-button size="small" type="primary" plain @click="$emit('retry')">重试</el-button>
     </div>
-    <div v-else>
-      <div ref="chartRef" class="chart" style="height:320px"></div>
-      <div class="kw-summary">
-        <el-tag v-for="(item, idx) in topKeywords" :key="idx"
-          :type="tagTypes[idx % tagTypes.length]" effect="light" size="large">
-          {{ item.keyword }}: {{ item.total }} 次
-        </el-tag>
-      </div>
-    </div>
+    <div v-else ref="chartRef" class="chart"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue'
-// ECharts 按需引入，减少首屏体积
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { Warning } from '@element-plus/icons-vue'
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -33,81 +25,92 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   error: { type: String, default: null },
 })
-
 defineEmits(['retry'])
 
 const chartRef = ref(null)
 let chart = null
 
-const tagTypes = ['primary', 'success', 'warning', 'danger', 'info']
+const colorMap = {
+  '豆包': '#1D4ED8', '飞书': '#10B981', 'Agent': '#F59E0B', '大模型': '#8B5CF6',
+  'AI办公': '#06B6D4', 'ChatGPT': '#EF4444', '企业AI': '#EC4899', '智能体': '#84CC16',
+}
+const fallbackColors = ['#1D4ED8', '#10B981', '#F59E0B', '#8B5CF6', '#06B6D4', '#EF4444', '#EC4899', '#84CC16']
 
-const topKeywords = ref([])
+function getColor(kw, idx) { return colorMap[kw] || fallbackColors[idx % fallbackColors.length] }
 
 function initChart() {
   if (!chartRef.value) return
   chart = echarts.init(chartRef.value)
-  window.addEventListener('resize', () => chart?.resize())
 }
 
 function updateChart() {
   if (!chart || !props.data) return
-
   const keywords = Object.keys(props.data)
-  const series = []
   const allDates = new Set()
+  const seriesData = []
 
-  for (const kw of keywords) {
+  keywords.forEach((kw, idx) => {
     const kwData = props.data[kw]
-    if (!kwData || !kwData.trend) continue
-    const trend = kwData.trend
-    const data = trend.map(t => [t.date, t.count])
-    trend.forEach(t => allDates.add(t.date))
-    series.push({ name: kw, type: 'line', data, smooth: true, symbol: 'none' })
-  }
+    if (!kwData || !kwData.trend) return
+    const data = kwData.trend.map(t => [t.date, t.count])
+    kwData.trend.forEach(t => allDates.add(t.date))
+    const color = getColor(kw, idx)
+    seriesData.push({
+      name: kw, type: 'line', data, smooth: true, symbol: 'none',
+      lineStyle: { width: idx === 0 ? 2.5 : 2, color },
+      itemStyle: { color },
+      areaStyle: idx < 2 ? {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: color + '29' },
+          { offset: 1, color: color + '03' },
+        ]),
+      } : undefined,
+    })
+  })
 
   const dates = Array.from(allDates).sort()
 
   chart.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: keywords, type: 'scroll', bottom: 0 },
-    grid: { left: 40, right: 20, top: 20, bottom: 50 },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
-    yAxis: { type: 'value', name: '提及量' },
-    color: ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#9C27B0', '#00BCD4', '#FF9800'],
-    series,
-  })
-
-  // 计算 TOP 关键词
-  const kwList = keywords
-    .map(kw => ({
-      keyword: kw,
-      total: props.data[kw]?.total_mentions || props.data[kw]?.post_count || 0,
-    }))
-    .sort((a, b) => b.total - a.total)
-  topKeywords.value = kwList.slice(0, 5)
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(15,23,42,0.92)',
+      borderColor: 'transparent',
+      textStyle: { color: '#fff', fontSize: 12 },
+      padding: [10, 14],
+    },
+    legend: {
+      data: keywords,
+      top: 0, right: 0,
+      textStyle: { color: '#64748B', fontSize: 12 },
+      itemWidth: 14, itemHeight: 8, itemGap: 20,
+    },
+    grid: { left: 40, right: 20, top: 40, bottom: 30 },
+    xAxis: {
+      type: 'category', data: dates,
+      axisLine: { lineStyle: { color: '#E2E8F0' } },
+      axisLabel: { color: '#94A3B8', fontSize: 11, interval: Math.max(0, Math.floor(dates.length / 8) - 1) },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: '#94A3B8', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#F1F5F9', type: 'dashed' } },
+    },
+    series: seriesData,
+    animationDuration: 1200,
+    animationEasing: 'cubicOut',
+  }, true)
 }
 
-watch(() => props.data, () => {
-  nextTick(() => updateChart())
-}, { deep: true })
+function handleResize() { chart?.resize() }
 
-onMounted(() => {
-  nextTick(() => {
-    initChart()
-    updateChart()
-  })
-})
+watch(() => props.data, () => { nextTick(updateChart) }, { deep: true })
+onMounted(() => { nextTick(() => { initChart(); updateChart() }); window.addEventListener('resize', handleResize) })
+onUnmounted(() => { window.removeEventListener('resize', handleResize); chart?.dispose() })
 </script>
 
 <style scoped>
-.chart {
-  width: 100%;
-}
-.kw-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-  justify-content: center;
-}
+.keyword-trend { width: 100%; }
+.chart { width: 100%; height: 320px; }
 </style>

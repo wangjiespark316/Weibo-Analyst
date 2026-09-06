@@ -1,38 +1,50 @@
 <template>
-  <div class="sentiment">
-    <el-skeleton v-if="loading" :rows="4" animated />
-    <div v-else-if="error" class="error-state">
-      <el-empty description="数据暂时不可用，请稍后刷新">
-        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
-      </el-empty>
+  <div class="sentiment-wrap">
+    <!-- Loading -->
+    <div v-if="loading" class="sentiment-loading">
+      <el-skeleton :rows="3" animated />
     </div>
-    <el-empty v-else-if="!data || data.total_analyzed === 0" description="情感数据加载中或暂无数据" />
-    <div v-else>
-      <div ref="chartRef" class="chart" style="height:260px"></div>
-      <div class="sentiment-stats">
-        <div class="stat-item positive">
-          <div class="stat-num">{{ data.positive_ratio }}%</div>
-          <div class="stat-label">正面</div>
-          <div class="stat-count">{{ formatNum(data.positive_count) }} 条</div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="error-state">
+      <el-icon :size="40" color="#CBD5E1"><Warning /></el-icon>
+      <div class="error-text">情绪数据加载失败</div>
+      <el-button size="small" type="primary" plain @click="$emit('retry')">重试</el-button>
+    </div>
+
+    <!-- Chart -->
+    <div v-else class="sentiment-content">
+      <div ref="chartRef" class="sentiment-chart"></div>
+      <div class="sentiment-legend">
+        <div class="legend-item">
+          <div class="legend-left">
+            <span class="legend-dot" style="background:#10B981"></span>
+            <span class="legend-name">正面</span>
+          </div>
+          <div class="legend-right">
+            <span class="legend-pct">{{ positiveRate }}%</span>
+            <span class="legend-count">{{ positiveCount }} 条</span>
+          </div>
         </div>
-        <div class="stat-item neutral">
-          <div class="stat-num">{{ data.neutral_ratio }}%</div>
-          <div class="stat-label">中性</div>
-          <div class="stat-count">{{ formatNum(data.neutral_count) }} 条</div>
+        <div class="legend-item">
+          <div class="legend-left">
+            <span class="legend-dot" style="background:#CBD5E1"></span>
+            <span class="legend-name">中性</span>
+          </div>
+          <div class="legend-right">
+            <span class="legend-pct">{{ neutralRate }}%</span>
+            <span class="legend-count">{{ neutralCount }} 条</span>
+          </div>
         </div>
-        <div class="stat-item negative">
-          <div class="stat-num">{{ data.negative_ratio }}%</div>
-          <div class="stat-label">负面</div>
-          <div class="stat-count">{{ formatNum(data.negative_count) }} 条</div>
-        </div>
-      </div>
-      <div v-if="data.top_negative_viewpoints?.length" class="negative-words">
-        <div class="section-title">高频负面观点词</div>
-        <div class="word-tags">
-          <el-tag v-for="(w, idx) in data.top_negative_viewpoints.slice(0, 8)" :key="idx"
-            type="danger" effect="plain" size="small">
-            {{ w.word }} ({{ w.count }})
-          </el-tag>
+        <div class="legend-item">
+          <div class="legend-left">
+            <span class="legend-dot" style="background:#EF4444"></span>
+            <span class="legend-name">负面</span>
+          </div>
+          <div class="legend-right">
+            <span class="legend-pct">{{ negativeRate }}%</span>
+            <span class="legend-count">{{ negativeCount }} 条</span>
+          </div>
         </div>
       </div>
     </div>
@@ -40,12 +52,12 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue'
-// ECharts 按需引入，减少首屏体积
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts/core'
 import { PieChart } from 'echarts/charts'
 import { TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { Warning } from '@element-plus/icons-vue'
 
 echarts.use([PieChart, TooltipComponent, CanvasRenderer])
 
@@ -54,70 +66,82 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   error: { type: String, default: null },
 })
-
 defineEmits(['retry'])
 
 const chartRef = ref(null)
-let chart = null
+let chartInstance = null
 
-function formatNum(num) {
-  if (num == null) return '0'
-  if (num >= 10000) return (num / 10000).toFixed(1) + '万'
-  return num.toLocaleString()
-}
+const total = computed(() => props.data?.total_analyzed || 0)
+const positiveRate = computed(() => Math.round(props.data?.positive_ratio || 0))
+const neutralRate = computed(() => Math.round(props.data?.neutral_ratio || 0))
+const negativeRate = computed(() => Math.round(props.data?.negative_ratio || 0))
+const positiveCount = computed(() => Math.round(total.value * positiveRate.value / 100))
+const neutralCount = computed(() => Math.round(total.value * neutralRate.value / 100))
+const negativeCount = computed(() => Math.round(total.value * negativeRate.value / 100))
 
-function initChart() {
-  if (!chartRef.value) return
-  chart = echarts.init(chartRef.value)
-  window.addEventListener('resize', () => chart?.resize())
-}
-
-function updateChart() {
-  if (!chart || !props.data) return
-  chart.setOption({
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+function renderChart() {
+  if (!chartRef.value || !props.data) return
+  if (!chartInstance) chartInstance = echarts.init(chartRef.value)
+  chartInstance.setOption({
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(15,23,42,0.92)',
+      borderColor: 'transparent',
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter: '{b}: {c} 条 ({d}%)',
+    },
     series: [{
       type: 'pie',
-      radius: ['45%', '70%'],
+      radius: ['62%', '82%'],
       center: ['50%', '50%'],
       avoidLabelOverlap: false,
-      label: { show: true, formatter: '{b}\n{d}%', fontSize: 11 },
+      label: {
+        show: true,
+        position: 'center',
+        formatter: `{total|${total.value}}\n{sub|条评论}`,
+        rich: {
+          total: { fontSize: 22, fontWeight: 800, color: '#0F172A', lineHeight: 28 },
+          sub: { fontSize: 12, color: '#94A3B8' },
+        },
+      },
+      labelLine: { show: false },
       data: [
-        { value: props.data.positive_count || 0, name: '正面', itemStyle: { color: '#67C23A' } },
-        { value: props.data.neutral_count || 0, name: '中性', itemStyle: { color: '#909399' } },
-        { value: props.data.negative_count || 0, name: '负面', itemStyle: { color: '#F56C6C' } },
+        { value: positiveCount.value, name: '正面', itemStyle: { color: '#10B981' } },
+        { value: neutralCount.value, name: '中性', itemStyle: { color: '#CBD5E1' } },
+        { value: negativeCount.value, name: '负面', itemStyle: { color: '#EF4444' } },
       ],
+      animationType: 'scale',
+      animationEasing: 'elasticOut',
+      animationDuration: 1000,
     }],
   })
 }
 
-watch(() => props.data, () => nextTick(() => updateChart()), { deep: true })
+function handleResize() { chartInstance?.resize() }
 
-onMounted(() => {
-  nextTick(() => {
-    initChart()
-    updateChart()
-  })
-})
+watch(() => props.data, () => { nextTick(renderChart) }, { deep: true })
+onMounted(() => { nextTick(renderChart); window.addEventListener('resize', handleResize) })
+onUnmounted(() => { window.removeEventListener('resize', handleResize); chartInstance?.dispose() })
 </script>
 
 <style scoped>
-.chart { width: 100%; }
-.sentiment-stats {
+.sentiment-wrap { width: 100%; }
+.sentiment-loading { padding: 20px; }
+.sentiment-content { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.sentiment-chart { width: 100%; height: 200px; }
+.sentiment-legend { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.legend-item {
   display: flex;
-  justify-content: space-around;
-  margin-top: 8px;
-  padding: 12px 0;
-  border-top: 1px solid #ebeef5;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--gray-50);
+  border-radius: 8px;
 }
-.stat-item { text-align: center; }
-.stat-num { font-size: 22px; font-weight: 700; }
-.stat-item.positive .stat-num { color: #67C23A; }
-.stat-item.neutral .stat-num { color: #909399; }
-.stat-item.negative .stat-num { color: #F56C6C; }
-.stat-label { font-size: 13px; color: #606266; margin: 2px 0; }
-.stat-count { font-size: 11px; color: #909399; }
-.negative-words { margin-top: 12px; padding-top: 12px; border-top: 1px solid #ebeef5; }
-.section-title { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 8px; }
-.word-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend-left { display: flex; align-items: center; gap: 8px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+.legend-name { font-size: 13px; color: var(--text-body); font-weight: 500; }
+.legend-right { display: flex; align-items: center; gap: 10px; }
+.legend-pct { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.legend-count { font-size: 12px; color: var(--text-muted); }
 </style>
