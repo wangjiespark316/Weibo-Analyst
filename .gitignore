@@ -44,3 +44,4 @@ draft_*_folder/
 # step9_scheduler/reports/
 # step6_data_analysis/reports/
 # step8_agent_verification/output/
+.api_cache/
