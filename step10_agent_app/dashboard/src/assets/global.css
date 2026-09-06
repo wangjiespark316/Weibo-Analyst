@@ -1,17 +1,19 @@
-/* 全局样式 */
-
-/* 错误状态 */
-.error-state {
-  padding: 24px 0;
-}
-
-.error-state .el-empty {
+/* 企业级 Dashboard 全局样式 */
+* {
+  margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
-/* 骨架屏动画优化 */
-.el-skeleton {
-  margin-bottom: 8px;
+html, body, #app {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f0f2f5;
+  color: #1a1a1a;
 }
 
 /* 滚动条美化 */
@@ -19,25 +21,193 @@
   width: 6px;
   height: 6px;
 }
-
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
+  background: #d9d9d9;
   border-radius: 3px;
 }
-
-::-webkit-scrollbar-track {
-  background: #f5f7fa;
+::-webkit-scrollbar-thumb:hover {
+  background: #bfbfbf;
 }
 
-/* 响应式优化 */
+/* Element Plus 组件覆盖 */
+.el-card {
+  border: none !important;
+}
+.el-card__body {
+  padding: 16px 20px;
+}
+
+/* 骨架屏 */
+.el-skeleton {
+  padding: 8px 0;
+}
+
+/* 错误状态 */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #8c8c8c;
+  text-align: center;
+}
+.error-state .error-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  color: #d9d9d9;
+}
+.error-state .error-text {
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+/* Markdown 日报样式 */
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #262626;
+}
+.markdown-body h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  border-bottom: 2px solid #409EFF;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+.markdown-body h2 {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  padding-left: 10px;
+  border-left: 4px solid #409EFF;
+}
+.markdown-body h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #434343;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.markdown-body p {
+  margin-bottom: 10px;
+}
+.markdown-body ul, .markdown-body ol {
+  padding-left: 24px;
+  margin-bottom: 10px;
+}
+.markdown-body li {
+  margin-bottom: 4px;
+}
+.markdown-body blockquote {
+  border-left: 4px solid #e8e8e8;
+  padding: 8px 16px;
+  margin: 12px 0;
+  background: #fafafa;
+  color: #595959;
+  border-radius: 0 6px 6px 0;
+}
+.markdown-body code {
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #d4380d;
+}
+.markdown-body strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+.markdown-body a {
+  color: #409EFF;
+  text-decoration: none;
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #f0f0f0;
+  margin: 20px 0;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid #e8e8e8;
+  padding: 8px 12px;
+  text-align: left;
+}
+.markdown-body th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+/* 热点微博卡片 */
+.hot-weibo-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background 0.2s;
+}
+.hot-weibo-item:last-child {
+  border-bottom: none;
+}
+.hot-weibo-item:hover {
+  background: #fafafa;
+}
+.hot-rank {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+  background: #f0f0f0;
+  color: #8c8c8c;
+}
+.hot-rank.top1 { background: linear-gradient(135deg, #ff4d4f, #cf1322); color: #fff; }
+.hot-rank.top2 { background: linear-gradient(135deg, #fa8c16, #d46b08); color: #fff; }
+.hot-rank.top3 { background: linear-gradient(135deg, #faad14, #d48806); color: #fff; }
+
+/* 影响力排行 */
+.influencer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+.influencer-item:last-child { border-bottom: none; }
+.influencer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #409EFF, #36cfc9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* 响应式 */
 @media (max-width: 768px) {
-  .el-header {
-    padding: 0 12px !important;
-  }
-  .title {
-    font-size: 16px !important;
-  }
-  .stat-value {
-    font-size: 20px !important;
-  }
+  .markdown-body h1 { font-size: 18px; }
+  .markdown-body h2 { font-size: 15px; }
+  .hot-weibo-item { flex-direction: column; gap: 8px; }
 }
