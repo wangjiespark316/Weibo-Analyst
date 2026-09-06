@@ -12,7 +12,6 @@ env/
 .env
 *.env
 step2_comment_segmentation/db_config.ini
-step7_api_service/config.py
 weibo_post_test.py
 cloud_deploy/tidb_import.py
 
