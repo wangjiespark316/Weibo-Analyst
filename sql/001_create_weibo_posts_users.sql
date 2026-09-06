@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS weibo_posts (
+  id            BIGINT UNSIGNED AUTO_INCREMENT COMMENT '自增主键',
+  weibo_id      VARCHAR(32)  NOT NULL COMMENT '微博数字ID（唯一）',
+  user_id       VARCHAR(50)  NOT NULL COMMENT '作者用户ID',
+  username      VARCHAR(100) DEFAULT NULL COMMENT '作者昵称（冗余）',
+  content       TEXT COMMENT '微博正文（清洗后纯文本）',
+  content_raw   TEXT COMMENT '微博正文原始HTML（溯源用）',
+  publish_time  DATETIME     DEFAULT NULL COMMENT '发布时间（API created_at解析）',
+  like_count    BIGINT       NOT NULL DEFAULT 0 COMMENT '点赞数',
+  comment_count BIGINT       NOT NULL DEFAULT 0 COMMENT '评论数',
+  repost_count  BIGINT       NOT NULL DEFAULT 0 COMMENT '转发数',
+  url           VARCHAR(500) DEFAULT NULL COMMENT '微博链接',
+  source        VARCHAR(50)  DEFAULT NULL COMMENT '采集来源 keyword/account',
+  topic         VARCHAR(100) DEFAULT NULL COMMENT '命中关键词/话题',
+  crawl_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '爬取时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_weibo_id (weibo_id),
+  KEY idx_user_id (user_id),
+  KEY idx_publish_time (publish_time),
+  KEY idx_username (username),
+  KEY idx_topic (topic)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='微博帖子表';
+
+CREATE TABLE IF NOT EXISTS weibo_users (
+  id              BIGINT UNSIGNED AUTO_INCREMENT COMMENT '自增主键',
+  user_id         VARCHAR(50)  NOT NULL COMMENT '微博用户ID（唯一）',
+  username        VARCHAR(100) DEFAULT NULL COMMENT '昵称',
+  followers_count BIGINT       NOT NULL DEFAULT 0 COMMENT '粉丝数',
+  following_count INT          NOT NULL DEFAULT 0 COMMENT '关注数',
+  weibo_count     INT          NOT NULL DEFAULT 0 COMMENT '微博数',
+  description     VARCHAR(500) DEFAULT NULL COMMENT '个人简介',
+  gender          VARCHAR(10)  DEFAULT NULL COMMENT '性别',
+  verified        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否认证',
+  verified_reason VARCHAR(200) DEFAULT NULL COMMENT '认证说明',
+  avatar          VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
+  crawl_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '爬取时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_user_id (user_id),
+  KEY idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='微博用户表';

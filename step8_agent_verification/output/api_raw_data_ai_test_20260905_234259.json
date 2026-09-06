@@ -1,0 +1,899 @@
+{
+  "tenant_key": "ai_test",
+  "tenant_name": "AI测试客户",
+  "hot_weibo": {
+    "total": 10,
+    "data": [
+      {
+        "weibo_id": "5314148529607265",
+        "user_id": "2814493542",
+        "username": "楼斌Robin",
+        "content": "转发并关注，抽一位送【666 元现金】/// 大折终于开始有自己不可替代的使用体验了？这期我们从 vivo X Fold6 的 AI 轻办公体验聊起，再拆开看看它怎么把 2 亿主摄、蔡司 APO 长焦、蓝图影像芯片 V3+、等效 7000mAh 电池、IPX8/IPX9 防水、IP5X 防尘和复合毛细网 VC 散热塞进一台轻薄大折里 ...全文",
+        "publish_time": "2026-06-26T20:00:04",
+        "like_count": 1917,
+        "comment_count": 1103,
+        "repost_count": 3816,
+        "hotspot_score": 82.18,
+        "url": "https://m.weibo.cn/detail/5314148529607265"
+      },
+      {
+        "weibo_id": "5309453209444415",
+        "user_id": "2328665481",
+        "username": "华商韬略官方微博",
+        "content": "西工大、北京城建带头选择#华为擎云，企业数字化需要自己的话语权云 华商韬略官方微博的微博视频 ",
+        "publish_time": "2026-06-13T21:02:33",
+        "like_count": 20056,
+        "comment_count": 200,
+        "repost_count": 1616,
+        "hotspot_score": 82.11,
+        "url": "https://m.weibo.cn/detail/5309453209444415"
+      },
+      {
+        "weibo_id": "5339470368342160",
+        "user_id": "2286908003",
+        "username": "人民网",
+        "content": "【#中国AI站上IFA展C位#】9月4日，2026年柏林国际消费电子展（简称IFA）开幕。与往年相比，今年IFA将主题定为“未来即是现在”，集结了超过11个主题展区，覆盖计算机与游戏、智能家居、零售创新、家庭娱乐、机器人、移动出行等多个领域。约1900家参展商在这11个展区中展示出全球消费电子产业力量，其中 ...全文",
+        "publish_time": "2026-09-04T17:00:01",
+        "like_count": 5734,
+        "comment_count": 702,
+        "repost_count": 1026,
+        "hotspot_score": 81.22,
+        "url": "https://m.weibo.cn/detail/5339470368342160"
+      },
+      {
+        "weibo_id": "5255399326355575",
+        "user_id": "1788911247",
+        "username": "谷大白话",
+        "content": "哈哈哈哈哈 ",
+        "publish_time": "2026-01-15T17:11:43",
+        "like_count": 4404,
+        "comment_count": 244,
+        "repost_count": 2675,
+        "hotspot_score": 78.16,
+        "url": "https://m.weibo.cn/detail/5255399326355575"
+      },
+      {
+        "weibo_id": "5263583324932724",
+        "user_id": "5888006271",
+        "username": "资源掌柜",
+        "content": "【经验贴】国内AI工具的特点：1、豆包——聊天对话比较强2、deepseek——金融代码领域很强3、文心一言——知识问答超在行4、通义千问——办公协助很出色5、智谱清言——逻辑推理顶呱呱6、Kimi——长文处理能力棒7、元宝——检索分析超精准8、通义灵码——代码生成效率高9、天工AI——音乐创作 ...全文",
+        "publish_time": "2026-02-07T07:12:00",
+        "like_count": 10169,
+        "comment_count": 115,
+        "repost_count": 2479,
+        "hotspot_score": 78.14,
+        "url": "https://m.weibo.cn/detail/5263583324932724"
+      },
+      {
+        "weibo_id": "5339743358552373",
+        "user_id": "5117634453",
+        "username": "月坛南桥君",
+        "content": "#走进呼和浩特算力枢纽#今天，中国联通内蒙古分公司机构产业服务事业群总经理陈晓娟告诉南桥君，中国联通在内蒙古已全面构建“通、智、超”一体化算力供给体系，形成“同城三活、双城互备”核心布局，在呼和浩特市新城区、和林格尔新区、金川开发区以及乌兰察布市均布局智算中心。其中，呼和浩特云数据 ...全文",
+        "publish_time": "2026-09-05T11:04:47",
+        "like_count": 1004,
+        "comment_count": 569,
+        "repost_count": 1092,
+        "hotspot_score": 73.46,
+        "url": "https://m.weibo.cn/detail/5339743358552373"
+      },
+      {
+        "weibo_id": "5337365948137790",
+        "user_id": "2992235900",
+        "username": "鹰与盾的时空",
+        "content": "景：以后叫我妈妈孙：好的，妈妈景：给妈妈 5000 万孙：我问一下 Claude景：这种事情你问 AI 鹰与盾的时空的微博视频 ",
+        "publish_time": "2026-08-29T21:37:47",
+        "like_count": 4139,
+        "comment_count": 332,
+        "repost_count": 229,
+        "hotspot_score": 72.78,
+        "url": "https://m.weibo.cn/detail/5337365948137790"
+      },
+      {
+        "weibo_id": "5338420605618842",
+        "user_id": "5638578896",
+        "username": "石头断情绝爱版",
+        "content": "用豆包帮我恢复了以前qq空间删掉的说说，除了图片都找回来了，但我不敢看 ",
+        "publish_time": "2026-09-01T19:28:38",
+        "like_count": 3663,
+        "comment_count": 156,
+        "repost_count": 771,
+        "hotspot_score": 72.25,
+        "url": "https://m.weibo.cn/detail/5338420605618842"
+      },
+      {
+        "weibo_id": "5339542451135050",
+        "user_id": "6864399044",
+        "username": "肉山太太",
+        "content": "95快乐！！你警我匪～小小实现一下~这个构想~早在赞在车后座邪魅一笑那个镜头出来的时候~就在脑子里了~以前不管是精力还是能力一个人当然是实现不了的~手搓+大模型渲染~在工具技术进步之后终于做出来了~博君一肖 肉山太太的微博视频  ",
+        "publish_time": "2026-09-04T21:46:27",
+        "like_count": 2095,
+        "comment_count": 320,
+        "repost_count": 466,
+        "hotspot_score": 71.73,
+        "url": "https://m.weibo.cn/detail/5339542451135050"
+      },
+      {
+        "weibo_id": "5338372665247991",
+        "user_id": "2107576281",
+        "username": "科技阿星",
+        "content": "#Manus回归你还会用吗#当年火到一码难求的Manus，正式官宣回归独立运营了。去年三月内测那会，邀请码根本抢不到，好多人到处求码，那会儿都把它当成首个真正的通用智能体，结果后来被Meta收购，没过多久就被叫停，转了这么一大圈，现在又重新走回了独立发展的路子。也就一年多的功夫，AI智能体赛道 ...全文",
+        "publish_time": "2026-09-01T16:18:08",
+        "like_count": 826,
+        "comment_count": 312,
+        "repost_count": 626,
+        "hotspot_score": 68.64,
+        "url": "https://m.weibo.cn/detail/5338372665247991"
+      }
+    ]
+  },
+  "keyword_trends": {
+    "豆包": {
+      "keyword": "豆包",
+      "total_mentions": 337,
+      "post_count": 243,
+      "comment_count": 94,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-08-21",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-24",
+          "post_count": 3,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-25",
+          "post_count": 4,
+          "comment_count": 6
+        },
+        {
+          "date": "2026-08-26",
+          "post_count": 2,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-27",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-28",
+          "post_count": 2,
+          "comment_count": 1
+        },
+        {
+          "date": "2026-08-29",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-30",
+          "post_count": 2,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-31",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-01",
+          "post_count": 3,
+          "comment_count": 1
+        },
+        {
+          "date": "2026-09-02",
+          "post_count": 6,
+          "comment_count": 14
+        },
+        {
+          "date": "2026-09-03",
+          "post_count": 13,
+          "comment_count": 23
+        },
+        {
+          "date": "2026-09-04",
+          "post_count": 68,
+          "comment_count": 20
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 136,
+          "comment_count": 29
+        }
+      ]
+    },
+    "飞书": {
+      "keyword": "飞书",
+      "total_mentions": 92,
+      "post_count": 79,
+      "comment_count": 13,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-08-18",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-22",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-24",
+          "post_count": 2,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-25",
+          "post_count": 4,
+          "comment_count": 2
+        },
+        {
+          "date": "2026-08-26",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-27",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-29",
+          "post_count": 0,
+          "comment_count": 3
+        },
+        {
+          "date": "2026-08-30",
+          "post_count": 0,
+          "comment_count": 3
+        },
+        {
+          "date": "2026-09-01",
+          "post_count": 0,
+          "comment_count": 1
+        },
+        {
+          "date": "2026-09-02",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-03",
+          "post_count": 4,
+          "comment_count": 2
+        },
+        {
+          "date": "2026-09-04",
+          "post_count": 18,
+          "comment_count": 1
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 46,
+          "comment_count": 1
+        }
+      ]
+    },
+    "AI办公": {
+      "keyword": "AI办公",
+      "total_mentions": 62,
+      "post_count": 57,
+      "comment_count": 5,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-08-24",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-27",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-02",
+          "post_count": 1,
+          "comment_count": 2
+        },
+        {
+          "date": "2026-09-03",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-04",
+          "post_count": 17,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 36,
+          "comment_count": 3
+        }
+      ]
+    },
+    "Agent": {
+      "keyword": "Agent",
+      "total_mentions": 98,
+      "post_count": 85,
+      "comment_count": 13,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-08-22",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-24",
+          "post_count": 4,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-25",
+          "post_count": 3,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-01",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-02",
+          "post_count": 3,
+          "comment_count": 2
+        },
+        {
+          "date": "2026-09-03",
+          "post_count": 8,
+          "comment_count": 6
+        },
+        {
+          "date": "2026-09-04",
+          "post_count": 20,
+          "comment_count": 3
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 45,
+          "comment_count": 2
+        }
+      ]
+    },
+    "企业AI": {
+      "keyword": "企业AI",
+      "total_mentions": 42,
+      "post_count": 42,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-09-04",
+          "post_count": 14,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 28,
+          "comment_count": 0
+        }
+      ]
+    },
+    "ChatGPT": {
+      "keyword": "ChatGPT",
+      "total_mentions": 49,
+      "post_count": 43,
+      "comment_count": 6,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-08-25",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-28",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-30",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-02",
+          "post_count": 0,
+          "comment_count": 1
+        },
+        {
+          "date": "2026-09-03",
+          "post_count": 5,
+          "comment_count": 5
+        },
+        {
+          "date": "2026-09-04",
+          "post_count": 7,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 28,
+          "comment_count": 0
+        }
+      ]
+    },
+    "大模型": {
+      "keyword": "大模型",
+      "total_mentions": 99,
+      "post_count": 86,
+      "comment_count": 13,
+      "days": 30,
+      "daily_trend": [
+        {
+          "date": "2026-08-09",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-17",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-21",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-25",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-26",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-28",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-29",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-08-30",
+          "post_count": 1,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-01",
+          "post_count": 5,
+          "comment_count": 0
+        },
+        {
+          "date": "2026-09-02",
+          "post_count": 1,
+          "comment_count": 3
+        },
+        {
+          "date": "2026-09-03",
+          "post_count": 8,
+          "comment_count": 1
+        },
+        {
+          "date": "2026-09-04",
+          "post_count": 18,
+          "comment_count": 5
+        },
+        {
+          "date": "2026-09-05",
+          "post_count": 46,
+          "comment_count": 4
+        }
+      ]
+    }
+  },
+  "sentiment": {
+    "total_analyzed": 2627,
+    "sample_size": 3000,
+    "positive_count": 1449,
+    "neutral_count": 472,
+    "negative_count": 706,
+    "positive_ratio": 55.2,
+    "neutral_ratio": 18.0,
+    "negative_ratio": 26.9,
+    "top_negative_viewpoints": [
+      {
+        "word": "豆包",
+        "count": 53
+      },
+      {
+        "word": "AI",
+        "count": 39
+      },
+      {
+        "word": "44",
+        "count": 33
+      },
+      {
+        "word": "厉害",
+        "count": 29
+      },
+      {
+        "word": "宋亚轩",
+        "count": 24
+      },
+      {
+        "word": "新生代",
+        "count": 21
+      },
+      {
+        "word": "顶流",
+        "count": 21
+      },
+      {
+        "word": "这么",
+        "count": 20
+      },
+      {
+        "word": "生成",
+        "count": 16
+      },
+      {
+        "word": "直接",
+        "count": 15
+      },
+      {
+        "word": "问题",
+        "count": 14
+      },
+      {
+        "word": "有点",
+        "count": 14
+      },
+      {
+        "word": "公司",
+        "count": 12
+      },
+      {
+        "word": "是不是",
+        "count": 12
+      },
+      {
+        "word": "折叠",
+        "count": 12
+      },
+      {
+        "word": "时候",
+        "count": 11
+      },
+      {
+        "word": "文件",
+        "count": 11
+      },
+      {
+        "word": "需要",
+        "count": 10
+      },
+      {
+        "word": "我们",
+        "count": 10
+      },
+      {
+        "word": "一点",
+        "count": 10
+      }
+    ],
+    "keyword": null
+  },
+  "influencers_followers": {
+    "type": "followers",
+    "total": 10,
+    "data": [
+      {
+        "user_id": "1699432410",
+        "username": "新华社",
+        "followers_count": 113999999,
+        "following_count": 3029,
+        "weibo_count": 204564,
+        "post_count": 1,
+        "total_likes": 553,
+        "total_comments": 60,
+        "total_reposts": 178,
+        "total_engagement": 791,
+        "verified": 1,
+        "description": "新华社官方微博，重大新闻权威首发平台。"
+      },
+      {
+        "user_id": "2286908003",
+        "username": "人民网",
+        "followers_count": 86298000,
+        "following_count": 1166,
+        "weibo_count": 271941,
+        "post_count": 1,
+        "total_likes": 5734,
+        "total_comments": 702,
+        "total_reposts": 1026,
+        "total_engagement": 7462,
+        "verified": 1,
+        "description": "报道全球 传播中国"
+      },
+      {
+        "user_id": "1663072851",
+        "username": "中国日报",
+        "followers_count": 65131000,
+        "following_count": 476,
+        "weibo_count": 217203,
+        "post_count": 1,
+        "total_likes": 11,
+        "total_comments": 5,
+        "total_reposts": 0,
+        "total_engagement": 16,
+        "verified": 1,
+        "description": "CHINA DAILY《中国日报》在新时代，与你一起记录中国，点评世界。"
+      },
+      {
+        "user_id": "1642512402",
+        "username": "中国新闻周刊",
+        "followers_count": 62545000,
+        "following_count": 2583,
+        "weibo_count": 244076,
+        "post_count": 4,
+        "total_likes": 1014,
+        "total_comments": 96,
+        "total_reposts": 309,
+        "total_engagement": 1419,
+        "verified": 1,
+        "description": "中国新闻周刊官方微博。报料邮箱：zgxwzkwb@163.com；版权所有：《中国新闻周刊》杂志社有限公司"
+      },
+      {
+        "user_id": "2258727970",
+        "username": "央视财经",
+        "followers_count": 38091000,
+        "following_count": 458,
+        "weibo_count": 164755,
+        "post_count": 2,
+        "total_likes": 113,
+        "total_comments": 15,
+        "total_reposts": 47,
+        "total_engagement": 175,
+        "verified": 1,
+        "description": "价值触手可及"
+      },
+      {
+        "user_id": "1658688240",
+        "username": "今日最hot",
+        "followers_count": 31406000,
+        "following_count": 207,
+        "weibo_count": 62324,
+        "post_count": 1,
+        "total_likes": 0,
+        "total_comments": 0,
+        "total_reposts": 0,
+        "total_engagement": 0,
+        "verified": 1,
+        "description": "最新最热的资讯，和你一起跟踪。"
+      },
+      {
+        "user_id": "1681029540",
+        "username": "新民周刊",
+        "followers_count": 29269000,
+        "following_count": 2394,
+        "weibo_count": 186751,
+        "post_count": 2,
+        "total_likes": 0,
+        "total_comments": 0,
+        "total_reposts": 0,
+        "total_engagement": 0,
+        "verified": 1,
+        "description": "纵览每天海内外大事趣闻，看新民周刊微博；合作请联系：1941610334（qq）"
+      },
+      {
+        "user_id": "6004281123",
+        "username": "梨视频",
+        "followers_count": 26497000,
+        "following_count": 3153,
+        "weibo_count": 174119,
+        "post_count": 2,
+        "total_likes": 185,
+        "total_comments": 36,
+        "total_reposts": 51,
+        "total_engagement": 272,
+        "verified": 1,
+        "description": "［视频报料邮箱］：yishou@pearvideo.com"
+      },
+      {
+        "user_id": "1650111241",
+        "username": "中国经营报",
+        "followers_count": 25277000,
+        "following_count": 1299,
+        "weibo_count": 246095,
+        "post_count": 1,
+        "total_likes": 1,
+        "total_comments": 0,
+        "total_reposts": 0,
+        "total_engagement": 1,
+        "verified": 1,
+        "description": "中国经营报微博由《中国经营报》社有限公司运营，与中国企业同步成长"
+      },
+      {
+        "user_id": "1642634100",
+        "username": "新浪科技",
+        "followers_count": 23793000,
+        "following_count": 2702,
+        "weibo_count": 264249,
+        "post_count": 1,
+        "total_likes": 1858,
+        "total_comments": 461,
+        "total_reposts": 17,
+        "total_engagement": 2336,
+        "verified": 1,
+        "description": "新浪科技是中国最有影响力的TMT产业资讯及数码产品服务平台。让我们带你观察世界变化，看清行业趋势！"
+      }
+    ]
+  },
+  "influencers_engagement": {
+    "type": "engagement",
+    "total": 10,
+    "data": [
+      {
+        "user_id": "1288369910",
+        "username": "浙江卫视",
+        "followers_count": 9343000,
+        "following_count": 1289,
+        "weibo_count": 120641,
+        "post_count": 1,
+        "total_likes": 41,
+        "total_comments": 1,
+        "total_reposts": 91452,
+        "total_engagement": 91494,
+        "verified": 1,
+        "description": null
+      },
+      {
+        "user_id": "2328665481",
+        "username": "华商韬略官方微博",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 20056,
+        "total_comments": 200,
+        "total_reposts": 1616,
+        "total_engagement": 21872,
+        "verified": null,
+        "description": null
+      },
+      {
+        "user_id": "5888006271",
+        "username": "资源掌柜",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 10169,
+        "total_comments": 115,
+        "total_reposts": 2479,
+        "total_engagement": 12763,
+        "verified": null,
+        "description": null
+      },
+      {
+        "user_id": "2286908003",
+        "username": "人民网",
+        "followers_count": 86298000,
+        "following_count": 1166,
+        "weibo_count": 271941,
+        "post_count": 1,
+        "total_likes": 5734,
+        "total_comments": 702,
+        "total_reposts": 1026,
+        "total_engagement": 7462,
+        "verified": 1,
+        "description": "报道全球 传播中国"
+      },
+      {
+        "user_id": "1788911247",
+        "username": "谷大白话",
+        "followers_count": 13378000,
+        "following_count": 1592,
+        "weibo_count": 50984,
+        "post_count": 1,
+        "total_likes": 4404,
+        "total_comments": 244,
+        "total_reposts": 2675,
+        "total_engagement": 7323,
+        "verified": 1,
+        "description": "THERE'S NO『俗』WITHOUT『谷』"
+      },
+      {
+        "user_id": "2814493542",
+        "username": "楼斌Robin",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 1917,
+        "total_comments": 1103,
+        "total_reposts": 3816,
+        "total_engagement": 6836,
+        "verified": null,
+        "description": null
+      },
+      {
+        "user_id": "2992235900",
+        "username": "鹰与盾的时空",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 4139,
+        "total_comments": 332,
+        "total_reposts": 229,
+        "total_engagement": 4700,
+        "verified": null,
+        "description": null
+      },
+      {
+        "user_id": "5638578896",
+        "username": "石头断情绝爱版",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 3663,
+        "total_comments": 156,
+        "total_reposts": 771,
+        "total_engagement": 4590,
+        "verified": null,
+        "description": null
+      },
+      {
+        "user_id": "7341773269",
+        "username": "大瑶同学remix",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 2737,
+        "total_comments": 242,
+        "total_reposts": 31,
+        "total_engagement": 3010,
+        "verified": null,
+        "description": null
+      },
+      {
+        "user_id": "6864399044",
+        "username": "肉山太太",
+        "followers_count": 0,
+        "following_count": 0,
+        "weibo_count": 0,
+        "post_count": 1,
+        "total_likes": 2095,
+        "total_comments": 320,
+        "total_reposts": 466,
+        "total_engagement": 2881,
+        "verified": null,
+        "description": null
+      }
+    ]
+  },
+  "daily_report_raw": {
+    "format": "markdown",
+    "content": "# 微博数据分析日报\n\n> 生成时间：2026-09-05 23:43\n\n## 一、数据概览\n\n| 指标 | 数量 |\n|---|---|\n| 微博帖子 | 1,000 |\n| 微博评论 | 3,031 |\n| 用户数 | 884 |\n\n## 二、热点微博 TOP10\n\n| 排名 | 作者 | 内容摘要 | 点赞 | 评论 | 转发 | 热度 |\n|---|---|---|---|---|---|---|\n| 1 | 楼斌Robin | 转发并关注，抽一位送【666 元现金】/// 大折终于开始有 | 1,917 | 1,103 | 3,816 | 82.18 |\n| 2 | 华商韬略官方微博 | 西工大、北京城建带头选择#华为擎云，企业数字化需要自己的话语 | 20,056 | 200 | 1,616 | 82.11 |\n| 3 | 人民网 | 【#中国AI站上IFA展C位#】9月4日，2026年柏林国际 | 5,734 | 702 | 1,026 | 81.22 |\n| 4 | 谷大白话 | 哈哈哈哈哈  | 4,404 | 244 | 2,675 | 78.16 |\n| 5 | 资源掌柜 | 【经验贴】国内AI工具的特点：1、豆包——聊天对话比较强2、 | 10,169 | 115 | 2,479 | 78.14 |\n| 6 | 月坛南桥君 | #走进呼和浩特算力枢纽#今天，中国联通内蒙古分公司机构产业服 | 1,004 | 569 | 1,092 | 73.46 |\n| 7 | 鹰与盾的时空 | 景：以后叫我妈妈孙：好的，妈妈景：给妈妈 5000 万孙：我 | 4,139 | 332 | 229 | 72.78 |\n| 8 | 石头断情绝爱版 | 用豆包帮我恢复了以前qq空间删掉的说说，除了图片都找回来了， | 3,663 | 156 | 771 | 72.25 |\n| 9 | 肉山太太 | 95快乐！！你警我匪～小小实现一下~这个构想~早在赞在车后座 | 2,095 | 320 | 466 | 71.73 |\n| 10 | 科技阿星 | #Manus回归你还会用吗#当年火到一码难求的Manus，正 | 826 | 312 | 626 | 68.64 |\n\n## 三、关键词趋势\n\n| 关键词 | 帖子提及 | 评论提及 | 总提及 |\n|---|---|---|---|\n| 豆包 | 247 | 109 | 356 |\n| Agent | 86 | 18 | 104 |\n| 大模型 | 86 | 13 | 99 |\n| 飞书 | 81 | 16 | 97 |\n| 人工智能 | 81 | 16 | 97 |\n| AI办公 | 57 | 5 | 62 |\n| ChatGPT | 44 | 6 | 50 |\n| 企业AI | 42 | 0 | 42 |\n| AIGC | 5 | 0 | 5 |\n\n## 四、情感分析\n\n- 分析评论：2,627\n- 正面：1,449（55.2%）\n- 中性：472（18.0%）\n- 负面：706（26.9%）\n\n### 高频负面观点\n\n| 排名 | 关键词 | 次数 |\n|---|---|---|\n| 1 | 豆包 | 53 |\n| 2 | AI | 39 |\n| 3 | 44 | 33 |\n| 4 | 厉害 | 29 |\n| 5 | 宋亚轩 | 24 |\n| 6 | 新生代 | 21 |\n| 7 | 顶流 | 21 |\n| 8 | 这么 | 20 |\n| 9 | 生成 | 16 |\n| 10 | 直接 | 15 |\n\n## 五、用户影响力 TOP5\n\n| 排名 | 用户 | 粉丝 | 总互动 |\n|---|---|---|---|\n| 1 | 新华社 | 113,999,999 | 791 |\n| 2 | 人民网 | 86,298,000 | 7,462 |\n| 3 | 中国日报 | 65,131,000 | 16 |\n| 4 | 中国新闻周刊 | 62,545,000 | 1,419 |\n| 5 | 央视财经 | 38,091,000 | 175 |",
+    "generated_at": "2026-09-05T23:43:03.995606"
+  }
+}

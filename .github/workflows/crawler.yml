@@ -1,0 +1,45 @@
+name: weibo-crawler
+
+# 定时爬虫：每天北京时间 09:20 运行（UTC 01:20）
+# 也支持手动触发
+on:
+  schedule:
+    - cron: "20 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pymysql requests snownlp jieba
+
+      - name: Run post collector
+        run: python step1_comments_spider/weibo_post_collector.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WEIBO_COOKIE: ${{ secrets.WEIBO_COOKIE }}
+
+      - name: Run comment batch collector
+        run: python step1_comments_spider/weibo_comment_batch_collector.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Generate daily report
+        run: python step9_scheduler/scheduler.py --now
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Upload reports artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-reports
+          path: step9_scheduler/reports/
+          retention-days: 30

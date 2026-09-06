@@ -1,0 +1,12 @@
+requests
+beautifulsoup4
+pandas
+numpy
+matplotlib
+scikit-learn
+jieba
+tqdm
+pymysql
+wordcloud
+snownlp
+DBUtils==1.2

@@ -1,0 +1,265 @@
+{
+  "tenant_key": "hotspot_test",
+  "tenant_name": "热点测试客户",
+  "hot_weibo": {
+    "total": 5,
+    "data": [
+      {
+        "weibo_id": "5334110152689546",
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "content": "很开心在迪奥烈艳蓝金惊艳派对现场见到大家～✨💄又一次被哑光唇膏 380惊艳到了！一起成为派对焦点吧！@DIOR迪奥 @DIOR迪奥美妆 #迪奥烈艳蓝金惊艳唇膏##迪奥烈艳蓝金惊艳系列# ",
+        "publish_time": "2026-08-20T22:00:26",
+        "like_count": 10019278,
+        "comment_count": 1000000,
+        "repost_count": 1000000,
+        "hotspot_score": 100.0,
+        "url": "https://m.weibo.cn/detail/5334110152689546"
+      },
+      {
+        "weibo_id": "5338313188704864",
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "content": "9.22“辣”就见面吧😘#迪丽热巴香辣狂欢##微博派对合伙人# ",
+        "publish_time": "2026-09-01T12:21:48",
+        "like_count": 4760197,
+        "comment_count": 1000000,
+        "repost_count": 1000000,
+        "hotspot_score": 98.15,
+        "url": "https://m.weibo.cn/detail/5338313188704864"
+      },
+      {
+        "weibo_id": "5332950548743114",
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "content": "好戏即将开场✨和#立白# 一起解锁精彩时刻，还有超多惊喜福利等你来哦～8月21日19:00，锁定立白官方直播间，我们不见不散！ ",
+        "publish_time": "2026-08-17T17:12:35",
+        "like_count": 3672932,
+        "comment_count": 1000000,
+        "repost_count": 1000000,
+        "hotspot_score": 97.51,
+        "url": "https://m.weibo.cn/detail/5332950548743114"
+      },
+      {
+        "weibo_id": "5331925717752289",
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "content": "铭记历史，缅怀先烈，吾辈自强！#日本战败投降81周年#",
+        "publish_time": "2026-08-14T21:20:16",
+        "like_count": 366017,
+        "comment_count": 204460,
+        "repost_count": 38894,
+        "hotspot_score": 81.29,
+        "url": "https://m.weibo.cn/detail/5331925717752289"
+      },
+      {
+        "weibo_id": "5338795505353547",
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "content": "#抗战胜利81年了# 14年浴血奋战，四万万人不屈抗争，先烈们用鲜血换来山河无恙。",
+        "publish_time": "2026-09-02T20:18:21",
+        "like_count": 265697,
+        "comment_count": 168108,
+        "repost_count": 28014,
+        "hotspot_score": 79.36,
+        "url": "https://m.weibo.cn/detail/5338795505353547"
+      }
+    ]
+  },
+  "keyword_trends": {
+    "豆包": {
+      "keyword": "豆包",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    },
+    "飞书": {
+      "keyword": "飞书",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    },
+    "AI办公": {
+      "keyword": "AI办公",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    },
+    "Agent": {
+      "keyword": "Agent",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    },
+    "企业AI": {
+      "keyword": "企业AI",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    },
+    "ChatGPT": {
+      "keyword": "ChatGPT",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    },
+    "大模型": {
+      "keyword": "大模型",
+      "total_mentions": 0,
+      "post_count": 0,
+      "comment_count": 0,
+      "days": 30,
+      "daily_trend": []
+    }
+  },
+  "sentiment": {
+    "total_analyzed": 250,
+    "sample_size": 3000,
+    "positive_count": 219,
+    "neutral_count": 17,
+    "negative_count": 14,
+    "positive_ratio": 87.6,
+    "neutral_ratio": 6.8,
+    "negative_ratio": 5.6,
+    "top_negative_viewpoints": [
+      {
+        "word": "不见不散",
+        "count": 6
+      },
+      {
+        "word": "姐姐",
+        "count": 5
+      },
+      {
+        "word": "21",
+        "count": 2
+      },
+      {
+        "word": "直播间",
+        "count": 2
+      },
+      {
+        "word": "温山",
+        "count": 1
+      },
+      {
+        "word": "软水",
+        "count": 1
+      },
+      {
+        "word": "满天",
+        "count": 1
+      },
+      {
+        "word": "星辰",
+        "count": 1
+      },
+      {
+        "word": "不及",
+        "count": 1
+      },
+      {
+        "word": "眉眼",
+        "count": 1
+      },
+      {
+        "word": "半分",
+        "count": 1
+      },
+      {
+        "word": "Dear",
+        "count": 1
+      },
+      {
+        "word": "迪丽",
+        "count": 1
+      },
+      {
+        "word": "热巴",
+        "count": 1
+      },
+      {
+        "word": "山河",
+        "count": 1
+      },
+      {
+        "word": "无恙",
+        "count": 1
+      },
+      {
+        "word": "两个",
+        "count": 1
+      },
+      {
+        "word": "星期",
+        "count": 1
+      },
+      {
+        "word": "辣椒",
+        "count": 1
+      },
+      {
+        "word": "开始",
+        "count": 1
+      }
+    ],
+    "keyword": null
+  },
+  "influencers_followers": {
+    "type": "followers",
+    "total": 1,
+    "data": [
+      {
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "followers_count": 82517000,
+        "following_count": 294,
+        "weibo_count": 1922,
+        "post_count": 5,
+        "total_likes": 19084121,
+        "total_comments": 3372568,
+        "total_reposts": 3066908,
+        "total_engagement": 25523597,
+        "verified": 1,
+        "description": "一只喜欢默默表演的小透明。工作联系jaywalk@jaywalk.com.cn 🍒"
+      }
+    ]
+  },
+  "influencers_engagement": {
+    "type": "engagement",
+    "total": 1,
+    "data": [
+      {
+        "user_id": "1669879400",
+        "username": "Dear-迪丽热巴",
+        "followers_count": 82517000,
+        "following_count": 294,
+        "weibo_count": 1922,
+        "post_count": 5,
+        "total_likes": 19084121,
+        "total_comments": 3372568,
+        "total_reposts": 3066908,
+        "total_engagement": 25523597,
+        "verified": 1,
+        "description": "一只喜欢默默表演的小透明。工作联系jaywalk@jaywalk.com.cn 🍒"
+      }
+    ]
+  },
+  "daily_report_raw": {
+    "format": "markdown",
+    "content": "# 微博数据分析日报\n\n> 生成时间：2026-09-05 23:43\n\n## 一、数据概览\n\n| 指标 | 数量 |\n|---|---|\n| 微博帖子 | 5 |\n| 微博评论 | 3,031 |\n| 用户数 | 884 |\n\n## 二、热点微博 TOP10\n\n| 排名 | 作者 | 内容摘要 | 点赞 | 评论 | 转发 | 热度 |\n|---|---|---|---|---|---|---|\n| 1 | Dear-迪丽热巴 | 很开心在迪奥烈艳蓝金惊艳派对现场见到大家～✨💄又一次被哑光唇 | 10,019,278 | 1,000,000 | 1,000,000 | 100.0 |\n| 2 | Dear-迪丽热巴 | 9.22“辣”就见面吧😘#迪丽热巴香辣狂欢##微博派对合伙人 | 4,760,197 | 1,000,000 | 1,000,000 | 98.15 |\n| 3 | Dear-迪丽热巴 | 好戏即将开场✨和#立白# 一起解锁精彩时刻，还有超多惊喜福利 | 3,672,932 | 1,000,000 | 1,000,000 | 97.51 |\n| 4 | Dear-迪丽热巴 | 铭记历史，缅怀先烈，吾辈自强！#日本战败投降81周年# | 366,017 | 204,460 | 38,894 | 81.29 |\n| 5 | Dear-迪丽热巴 | #抗战胜利81年了# 14年浴血奋战，四万万人不屈抗争，先烈 | 265,697 | 168,108 | 28,014 | 79.36 |\n\n## 三、关键词趋势\n\n| 关键词 | 帖子提及 | 评论提及 | 总提及 |\n|---|---|---|---|\n| 豆包 | 0 | 109 | 109 |\n| Agent | 0 | 18 | 18 |\n| 飞书 | 0 | 16 | 16 |\n| 人工智能 | 0 | 16 | 16 |\n| 大模型 | 0 | 13 | 13 |\n| ChatGPT | 0 | 6 | 6 |\n| AI办公 | 0 | 5 | 5 |\n| 企业AI | 0 | 0 | 0 |\n| AIGC | 0 | 0 | 0 |\n\n## 四、情感分析\n\n- 分析评论：250\n- 正面：219（87.6%）\n- 中性：17（6.8%）\n- 负面：14（5.6%）\n\n### 高频负面观点\n\n| 排名 | 关键词 | 次数 |\n|---|---|---|\n| 1 | 不见不散 | 6 |\n| 2 | 姐姐 | 5 |\n| 3 | 21 | 2 |\n| 4 | 直播间 | 2 |\n| 5 | 温山 | 1 |\n| 6 | 软水 | 1 |\n| 7 | 满天 | 1 |\n| 8 | 星辰 | 1 |\n| 9 | 不及 | 1 |\n| 10 | 眉眼 | 1 |\n\n## 五、用户影响力 TOP5\n\n| 排名 | 用户 | 粉丝 | 总互动 |\n|---|---|---|---|\n| 1 | Dear-迪丽热巴 | 82,517,000 | 25,523,597 |",
+    "generated_at": "2026-09-05T23:43:08.792426"
+  }
+}

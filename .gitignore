@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# ===== 敏感配置（禁止提交）=====
+.env
+*.env
+step2_comment_segmentation/db_config.ini
+step7_api_service/config.py
+weibo_post_test.py
+cloud_deploy/tidb_import.py
+
+# ===== 旧测试文件（含敏感信息，不提交）=====
+step1_comments_spider/test.py
+step1_comments_spider/test2.py
+step1_comments_spider/test3.py
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*.code-workspace
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== 日志 =====
+*.log
+
+# ===== 临时文件 =====
+*.tmp
+*.bak
+doc-fetch-resources/
+draft_*_folder/
+
+# ===== 生成的报告（可选，如需保留历史可取消注释）=====
+# step9_scheduler/reports/
+# step6_data_analysis/reports/
+# step8_agent_verification/output/
