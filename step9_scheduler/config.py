@@ -21,14 +21,20 @@ SCHEDULE_HOUR = int(os.getenv('SCHEDULE_HOUR', '8'))
 SCHEDULE_MINUTE = int(os.getenv('SCHEDULE_MINUTE', '0'))
 
 # ===== 飞书推送配置 =====
-# 飞书群机器人 Webhook（从环境变量读取，未配置则不推送）
+# 方式一：飞书自建应用（推荐，支持群聊、私聊、富文本卡片）
+FEISHU_APP_ID = os.getenv('FEISHU_APP_ID', '')
+FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET', '')
+FEISHU_CHAT_ID = os.getenv('FEISHU_CHAT_ID', '')
+
+# 方式二：飞书群机器人 Webhook（简单，仅支持群聊）
 FEISHU_WEBHOOK_URL = os.getenv('FEISHU_WEBHOOK_URL', '')
-# 飞书机器人签名密钥（可选）
+# 飞书机器人签名密钥（可选，仅 Webhook 模式）
 FEISHU_SECRET = os.getenv('FEISHU_SECRET', '')
-# 是否启用飞书推送（有 Webhook 则自动启用）
-FEISHU_ENABLED = bool(FEISHU_WEBHOOK_URL)
-# 日报 Dashboard 链接模板（{date} 会被替换为日期）
-REPORT_URL_TEMPLATE = os.getenv('REPORT_URL_TEMPLATE', 'https://weibo-analyst-dashboard.vercel.app')
+
+# 是否启用飞书推送（有 app 凭证或 Webhook 则自动启用）
+FEISHU_ENABLED = bool(FEISHU_APP_ID and FEISHU_APP_SECRET and FEISHU_CHAT_ID) or bool(FEISHU_WEBHOOK_URL)
+# 日报 Dashboard 链接模板
+REPORT_URL_TEMPLATE = os.getenv('REPORT_URL_TEMPLATE', 'https://weibo-analyst.vercel.app/')
 
 # ===== 数据采集配置（预留） =====
 # 是否在日报生成前执行数据采集

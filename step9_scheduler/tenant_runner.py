@@ -41,7 +41,42 @@ def _get_tenant_webhook(tenant_key: str) -> str:
 
 
 def _get_feishu_sender(tenant_key: str = None):
-    """获取飞书推送器实例（支持租户独立 Webhook）"""
+    """
+    获取飞书推送器实例（支持两种方式）
+    1. 自建应用模式（优先）：FEISHU_APP_ID + FEISHU_APP_SECRET + FEISHU_CHAT_ID
+    2. 群机器人 Webhook 模式（回退）：FEISHU_WEBHOOK_URL 或租户 feishu_webhook
+    """
+    # 优先检查自建应用配置
+    app_id = os.getenv('FEISHU_APP_ID', '')
+    app_secret = os.getenv('FEISHU_APP_SECRET', '')
+    chat_id = os.getenv('FEISHU_CHAT_ID', '')
+
+    # 租户级 app 配置覆盖（可选）
+    if tenant_key:
+        try:
+            tenants = load_tenants()
+            tenant = tenants.get(tenant_key, {})
+            if tenant.get('feishu_app_id'):
+                app_id = tenant['feishu_app_id']
+            if tenant.get('feishu_app_secret'):
+                app_secret = tenant['feishu_app_secret']
+            if tenant.get('feishu_chat_id'):
+                chat_id = tenant['feishu_chat_id']
+        except Exception:
+            pass
+
+    if app_id and app_secret and chat_id:
+        try:
+            from step11_feishu_sender import FeishuAppSender
+            return FeishuAppSender(
+                app_id=app_id,
+                app_secret=app_secret,
+                chat_id=chat_id,
+            )
+        except Exception as e:
+            print(f'[FeishuApp] 初始化失败: {e}，回退 Webhook 模式')
+
+    # 回退到 Webhook 模式
     webhook = _get_tenant_webhook(tenant_key) if tenant_key else os.getenv('FEISHU_WEBHOOK_URL', '')
     if not webhook:
         return None

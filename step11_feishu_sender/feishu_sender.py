@@ -270,6 +270,205 @@ class FeishuSender:
 
 
 # ============================================================
+# 飞书自建应用发送器（app_id + app_secret + chat_id）
+# ============================================================
+
+class FeishuAppSender:
+    """
+    飞书自建应用发送器
+    通过 app_id + app_secret 获取 tenant_access_token，调用消息 API 发送到指定群
+
+    环境变量：
+        FEISHU_APP_ID: 应用 app_id（cli_xxx）
+        FEISHU_APP_SECRET: 应用 app_secret
+        FEISHU_CHAT_ID: 目标群 chat_id（oc_xxx）
+    """
+
+    TOKEN_URL = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+    MSG_URL = "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id"
+
+    def __init__(
+        self,
+        app_id: Optional[str] = None,
+        app_secret: Optional[str] = None,
+        chat_id: Optional[str] = None,
+        timeout: int = 15,
+        max_retries: int = 2,
+    ):
+        self.app_id = app_id or os.getenv('FEISHU_APP_ID', '')
+        self.app_secret = app_secret or os.getenv('FEISHU_APP_SECRET', '')
+        self.chat_id = chat_id or os.getenv('FEISHU_CHAT_ID', '')
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self._token = None
+        self._token_expire_at = 0
+        self.enabled = bool(self.app_id and self.app_secret and self.chat_id)
+
+    def _get_token(self) -> Optional[str]:
+        """获取 tenant_access_token（带缓存，提前5分钟刷新）"""
+        now = time.time()
+        if self._token and now < self._token_expire_at - 300:
+            return self._token
+
+        try:
+            resp = requests.post(
+                self.TOKEN_URL,
+                json={"app_id": self.app_id, "app_secret": self.app_secret},
+                timeout=self.timeout,
+            )
+            result = resp.json()
+            if result.get('code') == 0:
+                self._token = result.get('tenant_access_token', '')
+                self._token_expire_at = now + result.get('expire', 7200)
+                return self._token
+            else:
+                print(f'[FeishuApp] 获取 token 失败: {result}')
+                return None
+        except Exception as e:
+            print(f'[FeishuApp] 获取 token 异常: {type(e).__name__}: {e}')
+            return None
+
+    def _send(self, msg_type: str, content: Dict[str, Any]) -> bool:
+        """发送消息（带重试）"""
+        if not self.enabled:
+            print('[FeishuApp] 未配置 app_id/app_secret/chat_id，跳过发送')
+            return False
+
+        token = self._get_token()
+        if not token:
+            return False
+
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json',
+        }
+        payload = {
+            'receive_id': self.chat_id,
+            'msg_type': msg_type,
+            'content': json.dumps(content, ensure_ascii=False),
+        }
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = requests.post(
+                    self.MSG_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                result = resp.json()
+                if result.get('code') == 0:
+                    return True
+                else:
+                    print(f'[FeishuApp] 推送失败: {result}')
+                    if attempt < self.max_retries:
+                        time.sleep(2)
+            except Exception as e:
+                print(f'[FeishuApp] 推送异常: {type(e).__name__}: {e}')
+                if attempt < self.max_retries:
+                    time.sleep(2)
+
+        print(f'[FeishuApp] 推送最终失败（已重试{self.max_retries}次）')
+        return False
+
+    def send_text(self, text: str) -> bool:
+        """发送纯文本消息"""
+        return self._send('text', {'text': text})
+
+    def send_interactive(self, card: Dict[str, Any]) -> bool:
+        """发送交互式卡片消息"""
+        return self._send('interactive', card)
+
+    def send_daily_report(
+        self,
+        date_str: str,
+        tenant_name: str = "",
+        hot_topics: Optional[List[str]] = None,
+        ai_trend: str = "",
+        keyword_changes: str = "",
+        sentiment_summary: str = "",
+        risk_alert: str = "",
+        report_url: str = "",
+    ) -> bool:
+        """发送微博舆情日报（交互式卡片）"""
+        hot_topics = hot_topics or []
+
+        # 构建 Markdown 内容
+        lines = []
+        lines.append(f"**日期**：{date_str}")
+        if tenant_name:
+            lines.append(f"**客户**：{tenant_name}")
+        lines.append("")
+
+        lines.append("**一、今日热点 TOP5**")
+        if hot_topics:
+            for i, topic in enumerate(hot_topics[:5], 1):
+                lines.append(f"{i}. {topic}")
+        else:
+            lines.append("暂无热点数据")
+        lines.append("")
+
+        if ai_trend:
+            lines.append("**二、AI行业趋势**")
+            lines.append(ai_trend)
+            lines.append("")
+
+        if keyword_changes:
+            lines.append("**三、关键词变化**")
+            lines.append(keyword_changes)
+            lines.append("")
+
+        if sentiment_summary:
+            lines.append("**四、用户情绪**")
+            lines.append(sentiment_summary)
+            lines.append("")
+
+        if risk_alert:
+            lines.append("**五、风险提醒**")
+            lines.append(f"⚠️ {risk_alert}")
+            lines.append("")
+
+        if report_url:
+            lines.append(f"[📄 查看完整日报]({report_url})")
+
+        content = "\n".join(lines)
+
+        card = {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "title": {"tag": "plain_text", "content": f"【微博舆情日报】{date_str}"},
+                "template": "blue",
+            },
+            "elements": [
+                {"tag": "markdown", "content": content},
+            ],
+        }
+        return self.send_interactive(card)
+
+    def send_alert(
+        self,
+        title: str,
+        message: str,
+        level: str = "warning",
+    ) -> bool:
+        """发送告警消息"""
+        color_map = {"warning": "orange", "error": "red", "info": "blue"}
+        template = color_map.get(level, "blue")
+
+        card = {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "title": {"tag": "plain_text", "content": f"⚠️ {title}"},
+                "template": template,
+            },
+            "elements": [
+                {"tag": "markdown", "content": message},
+            ],
+        }
+        return self.send_interactive(card)
+
+
+# ============================================================
 # 便捷函数
 # ============================================================
 
