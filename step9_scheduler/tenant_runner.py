@@ -26,21 +26,31 @@ from agent_client import (
     simulate_llm_report,
 )
 
-# 飞书推送器（延迟导入，避免未安装 requests 时报错）
-_feishu_sender = None
+
+def _get_tenant_webhook(tenant_key: str) -> str:
+    """获取租户的飞书 Webhook（优先租户配置，回退全局环境变量）"""
+    try:
+        tenants = load_tenants()
+        tenant = tenants.get(tenant_key, {})
+        webhook = tenant.get('feishu_webhook', '')
+        if webhook:
+            return webhook
+    except Exception:
+        pass
+    return os.getenv('FEISHU_WEBHOOK_URL', '')
 
 
-def _get_feishu_sender():
-    """获取飞书推送器实例（懒加载）"""
-    global _feishu_sender
-    if _feishu_sender is None:
-        try:
-            from step10_agent_app.feishu_sender import FeishuSender
-            _feishu_sender = FeishuSender()
-        except Exception as e:
-            print(f'[Feishu] 初始化失败: {e}')
-            _feishu_sender = False
-    return _feishu_sender if _feishu_sender else None
+def _get_feishu_sender(tenant_key: str = None):
+    """获取飞书推送器实例（支持租户独立 Webhook）"""
+    webhook = _get_tenant_webhook(tenant_key) if tenant_key else os.getenv('FEISHU_WEBHOOK_URL', '')
+    if not webhook:
+        return None
+    try:
+        from step11_feishu_sender import FeishuSender
+        return FeishuSender(webhook_url=webhook)
+    except Exception as e:
+        print(f'[Feishu] 初始化失败: {e}')
+        return None
 
 
 def _extract_report_info(report_content: str, data: dict) -> dict:
@@ -58,14 +68,15 @@ def _extract_report_info(report_content: str, data: dict) -> dict:
     info = {
         'hot_topics': [],
         'ai_trend': '',
+        'keyword_changes': '',
         'risk_alert': '',
         'sentiment_summary': '',
     }
 
-    # 从 API 数据提取热点 TOP3
+    # 从 API 数据提取热点 TOP5
     hot_data = data.get('hot_weibo', {}).get('data', [])
-    for p in hot_data[:3]:
-        content = (p.get('content') or '')[:40].replace('\n', ' ')
+    for p in hot_data[:5]:
+        content = (p.get('content') or '')[:50].replace('\n', ' ')
         username = p.get('username', '未知')
         info['hot_topics'].append(f'**{username}**：{content}')
 
@@ -81,6 +92,14 @@ def _extract_report_info(report_content: str, data: dict) -> dict:
         info['ai_trend'] = f'关键词热度：{top3}。'
         if len(kw_list) > 3:
             info['ai_trend'] += f' 其他：{"、".join(kw for kw, _ in kw_list[3:6])}。'
+
+        # 关键词变化（简单描述）
+        if len(kw_list) >= 2:
+            top_kw = kw_list[0][0]
+            second_kw = kw_list[1][0]
+            info['keyword_changes'] = f'{top_kw} 持续领先，{second_kw} 讨论度上升，整体 AI 相关话题热度稳定。'
+        else:
+            info['keyword_changes'] = '关键词分布较为集中，建议持续关注。'
 
     # 从 API 数据提取情绪分析
     sentiment = data.get('sentiment', {})
@@ -172,22 +191,24 @@ def run_tenant(tenant_key: str) -> dict:
         result['report_path'] = report_path
         result['success'] = True
 
-        # 第六步: 推送飞书机器人（如果启用）
-        if FEISHU_ENABLED:
+        # 第六步: 推送飞书机器人（如果启用或租户配置了 Webhook）
+        tenant_webhook = _get_tenant_webhook(tenant_key)
+        if FEISHU_ENABLED or tenant_webhook:
             try:
-                sender = _get_feishu_sender()
+                sender = _get_feishu_sender(tenant_key)
                 if sender:
                     report_info = _extract_report_info(report_content, data)
                     date_str = datetime.now().strftime('%Y-%m-%d')
                     report_url = REPORT_URL_TEMPLATE
                     feishu_success = sender.send_daily_report(
                         date_str=date_str,
+                        tenant_name=result['tenant_name'],
                         hot_topics=report_info['hot_topics'],
                         ai_trend=report_info['ai_trend'],
+                        keyword_changes=report_info['keyword_changes'],
+                        sentiment_summary=report_info['sentiment_summary'],
                         risk_alert=report_info['risk_alert'],
                         report_url=report_url,
-                        tenant_name=result['tenant_name'],
-                        sentiment_summary=report_info['sentiment_summary'],
                     )
                     result['feishu_pushed'] = feishu_success
                     if feishu_success:
@@ -195,7 +216,7 @@ def run_tenant(tenant_key: str) -> dict:
                     else:
                         print(f'  ⚠️  飞书推送失败（不影响日报生成）')
                 else:
-                    print(f'  ⚠️  飞书推送器未初始化（不影响日报生成）')
+                    print(f'  ⚠️  飞书 Webhook 未配置（不影响日报生成）')
                     result['feishu_pushed'] = False
             except Exception as fe:
                 print(f'  ⚠️  飞书推送异常: {type(fe).__name__}: {fe}（不影响日报生成）')

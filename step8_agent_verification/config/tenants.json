@@ -2,11 +2,13 @@
   "ai_test": {
     "name": "AI测试客户",
     "api_key": "wk_test_ai_001",
-    "report_type": "ai_industry"
+    "report_type": "ai_industry",
+    "feishu_webhook": ""
   },
   "hotspot_test": {
     "name": "热点测试客户",
     "api_key": "wk_test_hotspot_001",
-    "report_type": "general_hotspot"
+    "report_type": "general_hotspot",
+    "feishu_webhook": ""
   }
 }
