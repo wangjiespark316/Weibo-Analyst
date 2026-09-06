@@ -28,8 +28,10 @@ from .config import CACHE_TTL
 # 双层缓存：内存 + 文件持久化
 # ============================================================
 
-# 内存缓存: {cache_key: (timestamp, data)}
+# 内存缓存: {cache_key: (timestamp, data)} — 有界，最大 100 条
 _memory_cache = {}
+# 内存缓存最大容量（防止无限增长导致 OOM）
+_CACHE_MAX_SIZE = int(os.getenv('API_CACHE_MAX_SIZE', '100'))
 
 # 文件缓存目录
 _CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.api_cache')
@@ -48,12 +50,34 @@ def _cache_file_path(key: str) -> str:
     return os.path.join(_CACHE_DIR, f'{safe_key}.json')
 
 
+def _evict_expired():
+    """清理内存中过期的缓存条目"""
+    now = time.time()
+    expired = [k for k, (ts, _) in _memory_cache.items() if now - ts >= _CACHE_TTL]
+    for k in expired:
+        del _memory_cache[k]
+
+
+def _evict_if_needed():
+    """如果缓存超过最大容量，删除最旧的条目（按时间戳排序）"""
+    if len(_memory_cache) <= _CACHE_MAX_SIZE:
+        return
+    # 按时间戳升序排序，删除最旧的条目
+    sorted_keys = sorted(_memory_cache.keys(), key=lambda k: _memory_cache[k][0])
+    evict_count = len(_memory_cache) - _CACHE_MAX_SIZE
+    for k in sorted_keys[:evict_count]:
+        del _memory_cache[k]
+
+
 def _get_cache(key: str):
     """从内存或文件获取缓存"""
     # 1. 内存缓存
     item = _memory_cache.get(key)
     if item and time.time() - item[0] < _CACHE_TTL:
         return item[1]
+    # 内存中过期则删除
+    if item:
+        del _memory_cache[key]
 
     # 2. 文件缓存
     fpath = _cache_file_path(key)
@@ -63,17 +87,28 @@ def _get_cache(key: str):
             if time.time() - mtime < _CACHE_TTL:
                 with open(fpath, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                # 回填内存缓存
+                # 回填内存缓存（先清理过期和超量）
+                _evict_expired()
+                _evict_if_needed()
                 _memory_cache[key] = (time.time(), data)
                 return data
+            else:
+                # 文件过期则删除
+                os.remove(fpath)
         except Exception:
             pass
     return None
 
 
 def _set_cache(key: str, data):
-    """写入内存和文件缓存"""
+    """写入内存和文件缓存（有界，自动清理过期和超量）"""
+    # 先清理过期条目
+    _evict_expired()
+    # 写入内存
     _memory_cache[key] = (time.time(), data)
+    # 如果超量，删除最旧的
+    _evict_if_needed()
+    # 写入文件缓存
     try:
         fpath = _cache_file_path(key)
         with open(fpath, 'w', encoding='utf-8') as f:
@@ -231,12 +266,31 @@ def get_keyword_trend(keyword: str, days: int = 30,
             comment_params = (like_pattern, cutoff)
         comment_rows = db.fetch_all(comment_sql, comment_params)
 
-        posts = [{'publish_time': r['date'], 'content': keyword} for r in post_rows
-                 for _ in range(r['cnt'])]
-        comments = [{'created_time': r['date'], 'content': keyword} for r in comment_rows
-                    for _ in range(r['cnt'])]
+        # 直接使用 SQL 聚合结果，不展开生成虚拟记录（避免 OOM）
+        post_count = sum(r['cnt'] for r in post_rows)
+        comment_count = sum(r['cnt'] for r in comment_rows)
 
-        return engine.calc_keyword_trend(posts, comments, keyword, days)
+        # 按日合并趋势
+        post_by_day = {str(r['date']): r['cnt'] for r in post_rows}
+        comment_by_day = {str(r['date']): r['cnt'] for r in comment_rows}
+        all_days = sorted(set(list(post_by_day.keys()) + list(comment_by_day.keys())))
+        daily_trend = [
+            {
+                'date': d,
+                'post_count': post_by_day.get(d, 0),
+                'comment_count': comment_by_day.get(d, 0),
+            }
+            for d in all_days
+        ]
+
+        return {
+            'keyword': keyword,
+            'total_mentions': post_count + comment_count,
+            'post_count': post_count,
+            'comment_count': comment_count,
+            'days': days,
+            'daily_trend': daily_trend,
+        }
 
     return _safe_call(_do, cache_key=cache_key,
                       fallback={'keyword': keyword, 'total_mentions': 0,

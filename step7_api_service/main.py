@@ -19,12 +19,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import hot_weibo, keyword_trend, sentiment, influencers, daily_report
-from .services import warmup_cache
 
 app = FastAPI(
     title="微博数据分析 API",
     description="基于 MySQL 只读数据的微博分析服务（热点/关键词/情感/影响力/日报）",
-    version="1.2.0",
+    version="1.2.1",
 )
 
 # CORS：云端允许所有来源（Render 动态域名），本地限制 localhost
@@ -54,10 +53,8 @@ app.include_router(influencers.router)
 app.include_router(daily_report.router)
 
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时预热缓存，避免首次请求超时"""
-    warmup_cache()
+# 注意：已移除 startup 预热，避免 Render 512MB 内存限制下启动 OOM
+# 缓存按需生成，首次请求时计算并缓存
 
 
 @app.get("/", tags=["健康检查"])

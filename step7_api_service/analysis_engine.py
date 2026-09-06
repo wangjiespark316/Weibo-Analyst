@@ -16,8 +16,10 @@ import random
 from collections import Counter
 from datetime import datetime
 
-from snownlp import SnowNLP
-import jieba
+# 注意：SnowNLP 和 jieba 改为按需加载（在 calc_sentiment 函数内 import）
+# 避免 Web API 启动时加载大依赖导致内存占用过高
+# from snownlp import SnowNLP  # 按需加载
+# import jieba                   # 按需加载
 
 # 停用词
 STOPWORDS = set('''
@@ -118,7 +120,12 @@ def calc_sentiment(comments: list, sample_size: int = 3000,
     """
     SnowNLP 情感分析
     正面 >0.6 / 中性 0.4-0.6 / 负面 <0.4
+    注意：SnowNLP 和 jieba 按需加载，避免启动时占用大量内存
     """
+    # 按需加载大依赖
+    from snownlp import SnowNLP
+    import jieba
+
     if sample_size and len(comments) > sample_size:
         sample = random.sample(comments, sample_size)
     else:
