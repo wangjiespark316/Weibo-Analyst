@@ -26,7 +26,7 @@ from datetime import datetime
 # ============================================================
 # 配置
 # ============================================================
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = os.getenv('WEIBO_API_BASE', 'https://weibo-analyst-api.onrender.com')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 TENANTS_CONFIG = os.path.join(BASE_DIR, "config", "tenants.json")
