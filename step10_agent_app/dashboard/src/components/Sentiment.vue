@@ -1,6 +1,11 @@
 <template>
   <div class="sentiment">
     <el-skeleton v-if="loading" :rows="4" animated />
+    <div v-else-if="error" class="error-state">
+      <el-empty description="数据暂时不可用，请稍后刷新">
+        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
+      </el-empty>
+    </div>
     <el-empty v-else-if="!data || data.total_analyzed === 0" description="情感数据加载中或暂无数据" />
     <div v-else>
       <div ref="chartRef" class="chart" style="height:260px"></div>
@@ -36,12 +41,21 @@
 
 <script setup>
 import { ref, watch, onMounted, nextTick } from 'vue'
-import * as echarts from 'echarts'
+// ECharts 按需引入，减少首屏体积
+import * as echarts from 'echarts/core'
+import { PieChart } from 'echarts/charts'
+import { TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([PieChart, TooltipComponent, CanvasRenderer])
 
 const props = defineProps({
   data: { type: Object, default: null },
   loading: { type: Boolean, default: false },
+  error: { type: String, default: null },
 })
+
+defineEmits(['retry'])
 
 const chartRef = ref(null)
 let chart = null

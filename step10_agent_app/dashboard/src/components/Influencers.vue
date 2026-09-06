@@ -1,6 +1,11 @@
 <template>
   <div class="influencers">
     <el-skeleton v-if="loading" :rows="4" animated />
+    <div v-else-if="error" class="error-state">
+      <el-empty description="数据暂时不可用，请稍后刷新">
+        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
+      </el-empty>
+    </div>
     <el-empty v-else-if="!hasData" description="暂无影响力数据" />
     <div v-else class="influencer-grid">
       <!-- 粉丝量排行 -->
@@ -60,7 +65,10 @@ import { User, TrendCharts } from '@element-plus/icons-vue'
 const props = defineProps({
   data: { type: Object, default: () => ({ followers: [], engagement: [] }) },
   loading: { type: Boolean, default: false },
+  error: { type: String, default: null },
 })
+
+defineEmits(['retry'])
 
 const hasData = computed(() =>
   (props.data?.followers?.length > 0) || (props.data?.engagement?.length > 0)

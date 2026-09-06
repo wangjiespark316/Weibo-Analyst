@@ -1,6 +1,11 @@
 <template>
   <div class="hot-weibo">
     <el-skeleton v-if="loading" :rows="4" animated />
+    <div v-else-if="error" class="error-state">
+      <el-empty description="数据暂时不可用，请稍后刷新">
+        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
+      </el-empty>
+    </div>
     <el-empty v-else-if="!data || data.length === 0" description="暂无热点数据" />
     <div v-else class="weibo-list">
       <div v-for="(item, index) in data.slice(0, 10)" :key="item.weibo_id || index" class="weibo-item">
@@ -32,7 +37,10 @@ import { Pointer, ChatDotRound, Share } from '@element-plus/icons-vue'
 defineProps({
   data: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  error: { type: String, default: null },
 })
+
+defineEmits(['retry'])
 
 function formatNum(num) {
   if (num == null) return '0'

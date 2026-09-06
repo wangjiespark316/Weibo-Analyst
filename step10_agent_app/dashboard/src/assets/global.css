@@ -1,0 +1,43 @@
+/* 全局样式 */
+
+/* 错误状态 */
+.error-state {
+  padding: 24px 0;
+}
+
+.error-state .el-empty {
+  padding: 0;
+}
+
+/* 骨架屏动画优化 */
+.el-skeleton {
+  margin-bottom: 8px;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f7fa;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .el-header {
+    padding: 0 12px !important;
+  }
+  .title {
+    font-size: 16px !important;
+  }
+  .stat-value {
+    font-size: 20px !important;
+  }
+}

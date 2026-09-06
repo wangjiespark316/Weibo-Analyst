@@ -1,6 +1,11 @@
 <template>
   <div class="daily-report">
     <el-skeleton v-if="loading" :rows="8" animated />
+    <div v-else-if="error" class="error-state">
+      <el-empty description="日报生成中或暂时不可用，请稍后刷新">
+        <el-button type="primary" @click="$emit('retry')">重新加载</el-button>
+      </el-empty>
+    </div>
     <el-empty v-else-if="!data" description="日报生成中，请稍候..." />
     <div v-else class="report-content" v-html="renderedHtml"></div>
   </div>
@@ -13,7 +18,10 @@ import { marked } from 'marked'
 const props = defineProps({
   data: { type: String, default: '' },
   loading: { type: Boolean, default: false },
+  error: { type: String, default: null },
 })
+
+defineEmits(['retry'])
 
 const renderedHtml = computed(() => {
   if (!props.data) return ''
