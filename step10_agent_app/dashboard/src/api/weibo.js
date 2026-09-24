@@ -1,9 +1,7 @@
 import axios from 'axios'
 
 // API 基础地址（生产环境直接调用公网 API，开发环境走 Vite proxy）
-const API_BASE = import.meta.env.DEV
-  ? '/api'
-  : 'https://weibo-analyst-api.onrender.com/api'
+const API_BASE = '/api'
 
 // 默认 API Key（AI 行业客户）
 const DEFAULT_API_KEY = 'wk_test_ai_001'
