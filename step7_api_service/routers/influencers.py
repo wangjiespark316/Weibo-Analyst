@@ -15,7 +15,7 @@ def influencers(
     type: str = Query("followers", pattern="^(followers|engagement)$",
                       description="排序方式：followers 粉丝数 / engagement 互动量"),
     limit: int = Query(20, ge=1, le=100, description="返回条数"),
-    dataset_type: Optional[str] = Query(None, pattern="^(ai_industry|brand_monitor|general_hotspot)$",
+    dataset_type: Optional[str] = Query(None, pattern="^(ai_industry|brand_monitor|general_hotspot|archived_[a-z_]+)$",
                                          description="数据集过滤（未鉴权时生效；鉴权后由租户强制指定）"),
     tenant: Optional[dict] = Depends(verify_api_key),
 ):

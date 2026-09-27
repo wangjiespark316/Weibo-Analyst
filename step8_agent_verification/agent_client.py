@@ -18,6 +18,8 @@ AI Agent 调用 FastAPI 数据服务 — 多租户版
 """
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import argparse
 import requests
@@ -27,6 +29,11 @@ from datetime import datetime
 # 配置
 # ============================================================
 API_BASE = os.getenv('WEIBO_API_BASE', 'https://weibo-analyst-api.onrender.com')
+
+# 大模型配置
+LLM_API_KEY = os.getenv('LLM_API_KEY', '')
+LLM_API_BASE = os.getenv('LLM_API_BASE', 'https://api.openai.com/v1')
+LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 TENANTS_CONFIG = os.path.join(BASE_DIR, "config", "tenants.json")
@@ -72,9 +79,17 @@ def get_tenant(tenant_key: str) -> dict:
 # ============================================================
 
 def call_api(endpoint: str, params: dict = None, api_key: str = None) -> dict:
-    """调用 FastAPI 接口，自动添加 Authorization Header"""
+    """
+    调用 FastAPI 接口。
+    - X-API-Key：应用层网关密钥（main.py 全局中间件强制校验，取自环境变量 WEIBO_API_KEY）；
+    - Authorization: Bearer <租户 api_key>：多租户鉴权，锁定 dataset_type（可选）。
+    Agent 直连 uvicorn（WEIBO_API_BASE=http://127.0.0.1:8000，不经 Nginx 注入）时两道头都要带。
+    """
     url = f"{API_BASE}{endpoint}"
     headers = {}
+    gateway_key = os.getenv('WEIBO_API_KEY')
+    if gateway_key:
+        headers['X-API-Key'] = gateway_key
     if api_key:
         headers['Authorization'] = f"Bearer {api_key}"
     resp = requests.get(url, params=params, headers=headers, timeout=120)
@@ -82,16 +97,43 @@ def call_api(endpoint: str, params: dict = None, api_key: str = None) -> dict:
     return resp.json()
 
 
-def collect_all_data(tenant_key: str) -> dict:
-    """Agent 工作流第一步：调用全部 API 收集数据（带租户 API Key）"""
+def collect_all_data(tenant_key: str, analysis_date: str = None) -> dict:
+    """
+    Agent 工作流第一步：调用全部 API 收集数据（带租户 API Key）
+
+    analysis_date: 可选，'YYYY-MM-DD'（北京自然日）。
+      - 传入时：热点微博只取该自然日数据（服务端按 publish_time 精确过滤），
+        不再做客户端「最近2天」截断，保证日报严格对应某一天（T-1 日报用）。
+      - 不传时：保持旧行为（取最新并截断最近2天）。
+    """
     tenant = get_tenant(tenant_key)
     api_key = tenant['api_key']
     print(f"[Agent] 第一步：调用 FastAPI 收集数据（客户：{tenant['name']}）...")
-    data = {'tenant_key': tenant_key, 'tenant_name': tenant['name']}
+    data = {'tenant_key': tenant_key, 'tenant_name': tenant['name'],
+            'analysis_date': analysis_date}
 
     # 1. 热点微博 TOP10（dataset_type 由服务端根据 API Key 决定，不再手动传）
-    print("  → GET /api/hot-weibo?limit=10 (Authorization: Bearer ***)")
-    data['hot_weibo'] = call_api("/api/hot-weibo", {"limit": 10}, api_key=api_key)
+    if analysis_date:
+        print(f"  → GET /api/hot-weibo?limit=30&date={analysis_date}（自然日精确取数）")
+        raw_hot = call_api("/api/hot-weibo",
+                           {"limit": 30, "date": analysis_date}, api_key=api_key)
+        if raw_hot and isinstance(raw_hot, dict) and 'data' in raw_hot:
+            kept = raw_hot['data'][:15]
+            raw_hot['data'] = kept
+            raw_hot['total'] = len(kept)
+            print(f"    自然日 {analysis_date}：保留 {len(kept)} 条热点")
+    else:
+        print("  → GET /api/hot-weibo?limit=20 (Authorization: Bearer ***)")
+        raw_hot = call_api("/api/hot-weibo", {"limit": 20}, api_key=api_key)
+        # 只保留最近2天的微博
+        from datetime import datetime, timedelta
+        cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+        if raw_hot and isinstance(raw_hot, dict) and 'data' in raw_hot:
+            filtered = [p for p in raw_hot['data'] if str(p.get('publish_time', '')) >= cutoff]
+            raw_hot['data'] = filtered[:10]
+            raw_hot['total'] = len(filtered)
+            print(f"    时间过滤：最近2天，保留 {len(filtered)} 条（截止 {cutoff}）")
+    data['hot_weibo'] = raw_hot
 
     # 2. 多关键词趋势
     print(f"  → GET /api/keyword-trend ({len(KEYWORDS)}个关键词)")
@@ -114,9 +156,13 @@ def collect_all_data(tenant_key: str) -> dict:
         "/api/influencers", {"type": "engagement", "limit": 10}, api_key=api_key
     )
 
-    # 5. 数据概览（从日报接口取）
-    print("  → GET /api/daily-report")
-    daily = call_api("/api/daily-report", api_key=api_key)
+    # 5. 数据概览（从日报接口取；指定自然日时带上 date，服务端不支持会自动忽略）
+    if analysis_date:
+        print(f"  → GET /api/daily-report?date={analysis_date}")
+        daily = call_api("/api/daily-report", {"date": analysis_date}, api_key=api_key)
+    else:
+        print("  → GET /api/daily-report")
+        daily = call_api("/api/daily-report", api_key=api_key)
     data['daily_report_raw'] = daily
 
     print(f"[Agent] 数据收集完成：{len(data)} 个数据源")
@@ -506,13 +552,44 @@ def _summary_and_advice(data, lines, kw_list, report_type):
     lines.append("")
 
 
+
+def call_llm(prompt: str, system_prompt: str = None) -> str:
+    """调用大模型 API 生成分析，失败返回 None"""
+    if not LLM_API_KEY:
+        return None
+    try:
+        url = f"{LLM_API_BASE}/chat/completions"
+        headers = {"Authorization": f"Bearer {LLM_API_KEY}", "Content-Type": "application/json"}
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        payload = {"model": LLM_MODEL, "messages": messages, "temperature": 0.7, "max_tokens": 4000}
+        resp = requests.post(url, json=payload, headers=headers, timeout=120)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        print(f"[Agent] LLM call failed: {e}")
+        return None
+
+
 def simulate_llm_report(data: dict, context: str, tenant_key: str) -> str:
-    """模拟大模型输出：基于真实 API 数据生成客户专属日报"""
+    """生成日报：优先调用大模型，失败回退到本地模板"""
     tenant = get_tenant(tenant_key)
     report_type = tenant.get('report_type', 'ai_industry')
     meta = REPORT_META.get(report_type, REPORT_META['ai_industry'])
 
-    print(f"[Agent] 第四步：模拟大模型生成舆情日报（客户：{tenant['name']}）...")
+    if LLM_API_KEY:
+        print(f"[Agent] Step 4: Calling LLM {LLM_MODEL}...")
+        prompt = build_prompt(context, tenant_key)
+        system_prompt = "You are a professional sentiment analyst. Generate a deep analysis report in Chinese based on the provided Weibo data. Structure clear, data-driven."
+        llm_result = call_llm(prompt, system_prompt)
+        if llm_result:
+            print(f"[Agent] LLM report generated: {len(llm_result)} chars")
+            return llm_result
+        print("[Agent] LLM failed, falling back to template")
+
+    print(f"[Agent] Step 4: Template report generation...")
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
     kw_list = _get_kw_list(data)
 

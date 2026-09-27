@@ -21,13 +21,20 @@ class HotWeiboItem(BaseModel):
     like_count: int = 0
     comment_count: int = 0
     repost_count: int = 0
+    comment_capped: bool = False  # 评论数为微博接口百万封顶下限（真实值≥100万，精确值不可得）
+    repost_capped: bool = False   # 转发数为百万封顶下限
     hotspot_score: float = 0.0
     url: Optional[str] = None
+    publish_timestamp: Optional[int] = None
+    category: Optional[str] = None        # 真实 AI 类目（后端按话题/正文确定性归类）
+    sentiment: Optional[str] = None       # 真实情感（基于该帖高赞评论 SnowNLP 聚合；无评论为 None）
+    ai_status: Optional[str] = None       # 真实分析状态（done/pending，来自 comment_crawl_status）
 
 
 class HotWeiboResponse(BaseModel):
     total: int
     data: List[HotWeiboItem]
+    total_count: int = 0
 
 
 # ============================================================

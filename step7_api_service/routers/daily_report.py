@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/daily-report", tags=["日报"])
 
 @router.get("", response_model=DailyReportResponse, summary="生成完整 Markdown 日报")
 def daily_report(
-    dataset_type: Optional[str] = Query(None, pattern="^(ai_industry|brand_monitor|general_hotspot)$",
+    dataset_type: Optional[str] = Query(None, pattern="^(ai_industry|brand_monitor|general_hotspot|archived_[a-z_]+)$",
                                          description="数据集过滤（未鉴权时生效；鉴权后由租户强制指定）"),
     tenant: Optional[dict] = Depends(verify_api_key),
 ):

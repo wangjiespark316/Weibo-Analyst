@@ -1,0 +1,128 @@
+"""Idempotent T-1 AI daily Top 10 sync to the Feishu Base table."""
+
+import fcntl
+import os
+import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import requests
+
+from .services import get_hot_weibo
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BJ_TZ = timezone(timedelta(hours=8))
+KEYWORDS = 'AI,人工智能,大模型,智能体,Agent,飞书,豆包,ChatGPT,Claude,Copilot,WorkBuddy,AI办公,AI助手'
+BASE_TOKEN = os.getenv('FEISHU_DAILY_BASE_TOKEN', 'NRS9bfc2dabZvJsM133csK8Inee')
+TABLE_ID = os.getenv('FEISHU_DAILY_TABLE_ID', 'tblBL0YqGzZlvFon')
+API_ROOT = f'https://open.feishu.cn/open-apis/bitable/v1/apps/{BASE_TOKEN}/tables/{TABLE_ID}'
+
+
+def _request(method, url, token=None, **kwargs):
+    headers = kwargs.pop('headers', {})
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    response = requests.request(method, url, headers=headers, timeout=20, **kwargs)
+    response.raise_for_status()
+    result = response.json()
+    if result.get('code') != 0:
+        raise RuntimeError(f'Feishu API {result.get("code")}: {result.get("msg")}')
+    return result.get('data') or {}
+
+
+def _token():
+    app_id, app_secret = os.getenv('FEISHU_APP_ID'), os.getenv('FEISHU_APP_SECRET')
+    if not app_id or not app_secret:
+        raise RuntimeError('FEISHU_APP_ID / FEISHU_APP_SECRET missing')
+    response = requests.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+                             json={'app_id': app_id, 'app_secret': app_secret}, timeout=20)
+    response.raise_for_status()
+    data = response.json()
+    if data.get('code') != 0 or not data.get('tenant_access_token'):
+        raise RuntimeError(f'Feishu token error: {data.get("code")} {data.get("msg")}')
+    return data['tenant_access_token']
+
+
+def _plain_text(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return ''.join(_plain_text(item) for item in value)
+    if isinstance(value, dict):
+        return value.get('text') or value.get('link') or ''
+    return ''
+
+
+def _post_id(value):
+    match = re.search(r'm\.weibo\.cn/detail/(\d+)', _plain_text(value))
+    return match.group(1) if match else None
+
+
+def _existing_ids(token):
+    found = set()
+    page_token = None
+    while True:
+        params = {'page_size': 500}
+        if page_token:
+            params['page_token'] = page_token
+        data = _request('GET', f'{API_ROOT}/records', token, params=params)
+        for record in data.get('items') or []:
+            post_id = _post_id((record.get('fields') or {}).get('微博链接'))
+            if post_id:
+                found.add(post_id)
+        if not data.get('has_more'):
+            return found
+        page_token = data.get('page_token')
+        if not page_token:
+            raise RuntimeError('Feishu Base pagination missing page_token')
+
+
+def _fields(post):
+    return {
+        '标题': post.get('content') or '',
+        '日期': post.get('publish_time') or '',
+        '来源': '微博',
+        '作者': post.get('username') or '',
+        '微博链接': post['url'],
+        '热度': float(post.get('hotspot_score') or 0),
+        '原始内容': post.get('content') or '',
+    }
+
+
+def sync_yesterday(dry_run=False):
+    date = (datetime.now(BJ_TZ).date() - timedelta(days=1)).isoformat()
+    marker = PROJECT_ROOT / 'logs' / 'crawl_ready' / f'{date}.json'
+    if not marker.is_file():
+        raise RuntimeError(f'{date} daily crawl is not complete')
+    lock_path = PROJECT_ROOT / 'logs' / 'base_daily_sync.lock'
+    lock_path.parent.mkdir(exist_ok=True)
+    with open(lock_path, 'w') as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        # Marker mtime creates a fresh API cache key after the final crawl.
+        result = get_hot_weibo(limit=10, dataset_type='ai_industry',
+                               keyword=KEYWORDS, date=date,
+                               cache_version=str(marker.stat().st_mtime_ns))
+        if 'total_count' not in result:
+            raise RuntimeError('Hot Weibo query failed; no Base rows written')
+        token = _token()
+        existing = _existing_ids(token)
+        created = skipped = 0
+        for post in result.get('data') or []:
+            post_id = _post_id(post.get('url'))
+            if not post_id:
+                raise RuntimeError('Hot Weibo item has no canonical detail URL')
+            if post_id in existing:
+                skipped += 1
+                continue
+            if not dry_run:
+                _request('POST', f'{API_ROOT}/records', token, json={'fields': _fields(post)})
+            existing.add(post_id)
+            created += 1
+        return {'date': date, 'selected': len(result.get('data') or []),
+                'created': created, 'skipped': skipped, 'dry_run': dry_run}
+
+
+if __name__ == '__main__':
+    from dotenv import load_dotenv
+    load_dotenv(str(PROJECT_ROOT / '.env'))
+    print(sync_yesterday())

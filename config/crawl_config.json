@@ -1,0 +1,35 @@
+{
+  "keywords": [
+    "飞书",
+    "豆包",
+    "AI办公",
+    "智能体",
+    "AI助手",
+    "大模型",
+    "ChatGPT",
+    "Claude",
+    "WorkBuddy",
+    "Copilot"
+  ],
+  "users": [],
+  "max_posts": 10,
+  "max_comments": 50,
+  "search_mode": "realtime",
+  "collect_target": "today",
+  "per_keyword": 15,
+  "max_pages": 6,
+  "comment_post_limit": 30,
+  "collect_times": ["09:00", "13:00", "18:00", "22:00"],
+  "report_time": "08:30",
+  "tenants": [
+    {
+      "name": "示例客户A",
+      "keywords": [
+        "客户A品牌词"
+      ],
+      "users": [],
+      "max_posts": 3,
+      "max_comments": 30
+    }
+  ]
+}

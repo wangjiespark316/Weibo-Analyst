@@ -7,6 +7,19 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 
+# ===== 生产化：自动加载项目根目录 .env =====
+# 场景：launchd / 开机自启 / 无交互 shell 启动时，不会自动 source .env
+# 加载顺序：系统环境变量 > 项目根 .env > 代码默认值
+# override=False 保证不覆盖已有的系统环境变量
+try:
+    from dotenv import load_dotenv
+    _env_path = os.path.join(PROJECT_ROOT, '.env')
+    if os.path.exists(_env_path):
+        load_dotenv(_env_path, override=False)
+except ImportError:
+    # python-dotenv 未安装时回退到纯系统环境变量（不影响已有功能）
+    pass
+
 # 日报存储目录: reports/{tenant_key}/{YYYY-MM-DD}.md
 REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
 

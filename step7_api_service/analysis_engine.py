@@ -31,6 +31,27 @@ STOPWORDS = set('''
 # 1. 热点分析
 # ============================================================
 
+# 微博 m 端接口对评论数/转发数超过 100 万的热门微博统一返回 1000000
+# （封顶下限，非精确值）；点赞 attitudes_count 不封顶，仍为精确值。
+WEIBO_COUNT_CAP = 1_000_000
+
+
+def is_count_capped(value) -> bool:
+    """判断评论/转发计数是否为微博接口的百万封顶下限值。"""
+    try:
+        return int(value or 0) >= WEIBO_COUNT_CAP
+    except (TypeError, ValueError):
+        return False
+
+
+def format_count(value, capped: bool = None) -> str:
+    """计数格式化：封顶值显示“100万+”，其余按千分位显示。"""
+    n = int(value or 0)
+    if capped or (capped is None and is_count_capped(n)):
+        return '100万+'
+    return f'{n:,}'
+
+
 def calc_hotspot(posts: list, top_n: int = 20) -> list:
     """
     热点指数：log 归一化后加权 0.4×点赞 + 0.3×评论 + 0.3×转发
@@ -38,12 +59,19 @@ def calc_hotspot(posts: list, top_n: int = 20) -> list:
     if not posts:
         return []
 
+    # 封顶字段（评论/转发仅为≥100万的下限、精确值不可得）不赋予满分权重：
+    # 该字段权重减半，省下的权重转移到精确的点赞上，避免封顶值把热度顶到
+    # 满分；非封顶微博权重保持 0.4/0.3/0.3 不变，分数与排序不受影响。
     scored = []
     for p in posts:
         item = dict(p)
+        cc = p.get('comment_count', 0) or 0
+        cr = p.get('repost_count', 0) or 0
+        item['comment_capped'] = bool(p.get('comment_capped')) or is_count_capped(cc)
+        item['repost_capped'] = bool(p.get('repost_capped')) or is_count_capped(cr)
         item['_ll'] = math.log1p(p.get('like_count', 0) or 0)
-        item['_lc'] = math.log1p(p.get('comment_count', 0) or 0)
-        item['_lr'] = math.log1p(p.get('repost_count', 0) or 0)
+        item['_lc'] = math.log1p(cc)
+        item['_lr'] = math.log1p(cr)
         scored.append(item)
 
     max_ll = max(p['_ll'] for p in scored) or 1
@@ -51,9 +79,16 @@ def calc_hotspot(posts: list, top_n: int = 20) -> list:
     max_lr = max(p['_lr'] for p in scored) or 1
 
     for p in scored:
-        score = (0.4 * p['_ll'] / max_ll +
-                 0.3 * p['_lc'] / max_lc +
-                 0.3 * p['_lr'] / max_lr)
+        wl, wc, wr = 0.4, 0.3, 0.3
+        if p['comment_capped']:
+            wl += wc * 0.5
+            wc *= 0.5
+        if p['repost_capped']:
+            wl += wr * 0.5
+            wr *= 0.5
+        score = (wl * p['_ll'] / max_ll +
+                 wc * p['_lc'] / max_lc +
+                 wr * p['_lr'] / max_lr)
         p['hotspot_score'] = round(score * 100, 2)
         for k in ('_ll', '_lc', '_lr'):
             del p[k]
@@ -253,11 +288,16 @@ def calc_influencers(users: list, posts: list,
 # ============================================================
 
 def generate_daily_report(stats: dict, hotspot: list, keywords: list,
-                          sentiment: dict, influencers: dict) -> str:
+                          sentiment: dict, influencers: dict,
+                          report_date: str = None) -> str:
     """生成 Markdown 日报"""
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    if report_date is None:
+        from datetime import timedelta
+        report_date = (datetime.now() - timedelta(days=1)).strftime('%Y年%m月%d日')
     lines = [
-        '# 微博数据分析日报', '',
+        f'# 微博数据分析日报（{report_date}）', '',
+        f'> 数据统计范围：{report_date} 00:00 - 24:00',
         f'> 生成时间：{now}', '',
         '## 一、数据概览', '',
         '| 指标 | 数量 |', '|---|---|',
@@ -270,10 +310,13 @@ def generate_daily_report(stats: dict, hotspot: list, keywords: list,
     ]
     for i, p in enumerate(hotspot[:10], 1):
         content = (p.get('content') or '')[:30].replace('\n', ' ').replace('|', '/')
+        like_text = f'{int(p.get("like_count", 0) or 0):,}'
+        comment_text = format_count(p.get('comment_count', 0), p.get('comment_capped'))
+        repost_text = format_count(p.get('repost_count', 0), p.get('repost_capped'))
         lines.append(
             f'| {i} | {p.get("username","")} | {content} | '
-            f'{p.get("like_count",0):,} | {p.get("comment_count",0):,} | '
-            f'{p.get("repost_count",0):,} | {p.get("hotspot_score",0)} |'
+            f'{like_text} | {comment_text} | '
+            f'{repost_text} | {p.get("hotspot_score",0)} |'
         )
 
     lines += ['', '## 三、关键词趋势', '',

@@ -8,6 +8,8 @@ Agent 应用层配置
 - 输出目录
 """
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # 公网 API 地址
 API_BASE = os.getenv('WEIBO_API_BASE', 'https://weibo-analyst-api.onrender.com')

@@ -45,3 +45,19 @@ draft_*_folder/
 # step6_data_analysis/reports/
 # step8_agent_verification/output/
 .api_cache/
+
+# ===== vertexlab 20260927 补充：环境备份/各类缓存/运行产物 =====
+.env.*
+.env.bak*
+*.bak.*
+*.bak-*
+*.bak_*
+**/.event_cache/
+**/.product_cache/
+**/.report_cache/
+**/.trend_cache/
+**/.*_cache/
+logs/
+backups/
+step9_scheduler/reports/
+step10_agent_app/output/

@@ -10,7 +10,9 @@ import os
 import sys
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+BJ_TZ = timezone(timedelta(hours=8))
 
 from .config import TENANTS_CONFIG, AGENT_CLIENT_DIR, FEISHU_ENABLED, REPORT_URL_TEMPLATE
 from .report_sender import save_report
@@ -178,9 +180,14 @@ def get_tenant_name(tenant_key: str) -> str:
     return tenants.get(tenant_key, {}).get('name', tenant_key)
 
 
-def run_tenant(tenant_key: str) -> dict:
+def run_tenant(tenant_key: str, report_date: str = None) -> dict:
     """
     运行单个租户的日报生成全流程。
+
+    report_date: 可选 'YYYY-MM-DD'（北京自然日）。传入时：
+      - 热点/数据严格取该自然日（T-1 日报传昨天）；
+      - 日报文件名与飞书卡片标题日期都用该日期。
+      不传则保持旧行为（取最新、文件/卡片用今天）。
 
     流程:
       tenant_key → collect_all_data → build_context
@@ -190,6 +197,7 @@ def run_tenant(tenant_key: str) -> dict:
       {
         'tenant_key': str,
         'tenant_name': str,
+        'report_date': str|None,
         'success': bool,
         'report_path': str|None,
         'duration': float (秒),
@@ -201,16 +209,19 @@ def run_tenant(tenant_key: str) -> dict:
     result = {
         'tenant_key': tenant_key,
         'tenant_name': get_tenant_name(tenant_key),
+        'report_date': report_date,
         'success': False,
         'report_path': None,
         'duration': 0,
         'error': None,
         'generated_at': datetime.now().isoformat(),
     }
+    # 卡片/文件日期：指定自然日优先，否则北京今天
+    display_date = report_date or datetime.now(BJ_TZ).strftime('%Y-%m-%d')
 
     try:
-        # 第一步: API 获取数据（带 API Key）
-        data = collect_all_data(tenant_key)
+        # 第一步: API 获取数据（带 API Key；指定自然日时严格按日取数）
+        data = collect_all_data(tenant_key, analysis_date=report_date)
 
         # 第二步: 整理上下文
         context = build_context(data, tenant_key)
@@ -221,8 +232,8 @@ def run_tenant(tenant_key: str) -> dict:
         # 第四步: 生成日报内容
         report_content = simulate_llm_report(data, context, tenant_key)
 
-        # 第五步: 保存日报到文件系统
-        report_path = save_report(tenant_key, report_content)
+        # 第五步: 保存日报到文件系统（按自然日命名）
+        report_path = save_report(tenant_key, report_content, date_str=display_date)
         result['report_path'] = report_path
         result['success'] = True
 
@@ -233,7 +244,7 @@ def run_tenant(tenant_key: str) -> dict:
                 sender = _get_feishu_sender(tenant_key)
                 if sender:
                     report_info = _extract_report_info(report_content, data)
-                    date_str = datetime.now().strftime('%Y-%m-%d')
+                    date_str = display_date
                     report_url = REPORT_URL_TEMPLATE
                     feishu_success = sender.send_daily_report(
                         date_str=date_str,

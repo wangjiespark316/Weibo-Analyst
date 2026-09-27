@@ -69,8 +69,8 @@ def resolve_dataset_type(
 
     规则：
     - 有 tenant（已鉴权）→ 强制使用 tenant.dataset_type，忽略用户传入值
-    - 无 tenant（未鉴权）→ 使用 Query 参数 dataset_type（兼容旧调用）
+    - 无 tenant（未鉴权）→ 显式 Query 范围，缺省为 ai_industry，避免跨数据集混查
     """
     if tenant:
         return tenant['dataset_type']
-    return query_dataset_type
+    return query_dataset_type or 'ai_industry'

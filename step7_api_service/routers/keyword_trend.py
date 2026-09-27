@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/keyword-trend", tags=["关键词趋势"])
 def keyword_trend(
     keyword: str = Query(..., min_length=1, max_length=64, description="关键词"),
     days: int = Query(30, ge=1, le=365, description="统计天数"),
-    dataset_type: Optional[str] = Query(None, pattern="^(ai_industry|brand_monitor|general_hotspot)$",
+    dataset_type: Optional[str] = Query(None, pattern="^(ai_industry|brand_monitor|general_hotspot|archived_[a-z_]+)$",
                                          description="数据集过滤（未鉴权时生效；鉴权后由租户强制指定）"),
     tenant: Optional[dict] = Depends(verify_api_key),
 ):
