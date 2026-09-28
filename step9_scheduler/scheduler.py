@@ -55,40 +55,73 @@ def run_data_crawl(target: str = 'today'):
     （旧批量评论器会扫全库历史积压，不适合每日增量）。
 
     target: today=当天0点至今（高频增量）/ yesterday=昨天全天（日报前最后补采）/ YYYY-MM-DD
+
+    失败自动重试：当采集进程返回非零，或所有关键词均 API 失败（ok!=1）、
+    一页数据都没取到时，判定为「链路级失败」，按 CRAWL_RETRY_MAX / CRAWL_RETRY_WAIT
+    自动等待并重试（采集器按帖子去重，重复运行安全）。部分关键词失败但已取到数据时
+    判成功、不重试，避免重复写入。
     """
     if not ENABLE_CRAWL:
         print('[Scheduler] 数据采集未启用（ENABLE_CRAWL=false），跳过')
         return True
 
-    print(f'[Scheduler] 开始数据采集（实时流增量，目标日={target}）...')
     import subprocess
+    import re
+
+    retry_max = int(os.getenv('CRAWL_RETRY_MAX', '2'))
+    retry_wait = int(os.getenv('CRAWL_RETRY_WAIT', '90'))
 
     post_script = os.path.join(PROJECT_ROOT, 'step1_comments_spider', 'weibo_post_collector.py')
     if not os.path.exists(post_script):
         print(f'  ⚠️  帖子采集脚本不存在: {post_script}')
         return False
 
-    print(f'  → 执行实时流采集: {post_script} --mode realtime --target {target}')
-    try:
-        result = subprocess.run(
-            [sys.executable, post_script, '--mode', 'realtime', '--target', target],
-            capture_output=True, text=True, timeout=1800,
-            cwd=PROJECT_ROOT,
-        )
+    def _run_once(attempt: int):
+        print(f'  → [尝试 {attempt}] 实时流采集: {post_script} --mode realtime --target {target}')
+        try:
+            result = subprocess.run(
+                [sys.executable, post_script, '--mode', 'realtime', '--target', target],
+                capture_output=True, text=True, timeout=1800,
+                cwd=PROJECT_ROOT,
+            )
+        except Exception as e:
+            print(f'  ⚠️  采集异常: {type(e).__name__}: {e}')
+            return {'healthy': False, 'reason': f'exception:{type(e).__name__}'}
         # 实时采集器的进度都在 stdout，打印尾部便于排查
-        if result.stdout:
-            tail = '\n'.join(result.stdout.strip().split('\n')[-25:])
+        out = result.stdout or ''
+        if out:
+            tail = '\n'.join(out.strip().split('\n')[-25:])
             print(tail)
-        if result.returncode == 0:
-            print('  ✅ 实时流采集完成（帖子 + 窗口内评论）')
+        if result.returncode != 0:
+            print(f'  ⚠️  采集返回非零: {result.returncode}')
+            if result.stderr:
+                print(f'     stderr: {result.stderr[-500:]}')
+            return {'healthy': False, 'reason': f'returncode:{result.returncode}'}
+        # 判定「假成功」：所有关键词 ok!=1、未取到任何一页数据 = 链路整体故障
+        api_fails = out.count('ok!=1')
+        parsed_ok = len([m for m in re.finditer(r'解析到\s*([0-9]+)\s*条\s*mblog', out)
+                         if int(m.group(1)) > 0])
+        if api_fails > 0 and parsed_ok == 0:
+            return {'healthy': False,
+                    'reason': f'全部关键词API失败(ok!=1 x{api_fails})、0数据'}
+        if api_fails > 0:
+            print(f'  ⚠️  部分关键词失败(ok!=1 x{api_fails})，但已取到 {parsed_ok} 页数据，视为成功')
+        print('  ✅ 实时流采集完成（帖子 + 窗口内评论）')
+        return {'healthy': True, 'reason': 'ok'}
+
+    print(f'[Scheduler] 开始数据采集（实时流增量，目标日={target}，'
+          f'失败自动重试最多{retry_max}次/间隔{retry_wait}s）...')
+    last = {'healthy': False, 'reason': 'unknown'}
+    for attempt in range(1, retry_max + 2):
+        last = _run_once(attempt)
+        if last.get('healthy'):
             return True
-        print(f'  ⚠️  采集返回非零: {result.returncode}')
-        if result.stderr:
-            print(f'     stderr: {result.stderr[-500:]}')
-        return False
-    except Exception as e:
-        print(f'  ⚠️  采集异常: {type(e).__name__}: {e}')
-        return False
+        if attempt <= retry_max:
+            print(f'  ⏳ 采集未成功（{last.get("reason")}），{retry_wait}s 后自动重试'
+                  f'（剩余{retry_max - attempt + 1}次）...')
+            time.sleep(retry_wait)
+    print(f'  ❌ 采集经 {retry_max + 1} 次尝试仍失败：{last.get("reason")}')
+    return False
 
 
 def load_schedule_config():
