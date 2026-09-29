@@ -401,7 +401,130 @@ def _dedupe_same_topic(posts, threshold=0.30):
             for t in topics: kept_topics.add(t)
     return kept
 
+
+# ---------- LLM 事件聚簇 + AI 相关性闸门（2026-09-29 加） ----------
+def _parse_json_object(text):
+    """从模型输出中解析 JSON 对象；失败返回 None。"""
+    if not text:
+        return None
+    t = text.strip()
+    if t.startswith("```json"):
+        t = t[7:]
+    elif t.startswith("```"):
+        t = t[3:]
+    if t.endswith("```"):
+        t = t[:-3]
+    t = t.strip()
+    try:
+        return json.loads(t)
+    except Exception:
+        try:
+            i, j = t.find("{"), t.rfind("}")
+            if i >= 0 and j > i:
+                return json.loads(t[i:j + 1])
+        except Exception:
+            return None
+    return None
+
+
+def _llm_chat_json(system_prompt, user_prompt, max_tokens=1400, timeout=40):
+    """调用 OpenAI 兼容接口（默认 DeepSeek），返回解析后的 dict；缺 key 或任何失败返回 None。"""
+    api_key = os.getenv("LLM_API_KEY")
+    if not api_key:
+        return None
+    api_base = os.getenv("LLM_API_BASE", "https://api.deepseek.com/v1")
+    model = os.getenv("LLM_MODEL", "deepseek-chat")
+    try:
+        import requests
+        resp = requests.post(
+            f"{api_base}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_tokens": max_tokens,
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=timeout,
+        )
+        if resp.status_code != 200:
+            print(f"[llm-clean] api {resp.status_code}: {resp.text[:160]}", flush=True)
+            return None
+        content = resp.json()["choices"][0]["message"]["content"]
+        return _parse_json_object(content)
+    except Exception as e:
+        print(f"[llm-clean] call failed: {type(e).__name__}: {e}", flush=True)
+        return None
+
+
+def _llm_select_and_cluster(posts):
+    """LLM 做 AI 相关性闸门 + 同一事件聚簇。
+    输入帖子已按热度降序；返回仅含保留帖（同事件只留 1 条）、并保持原热度顺序的列表。
+    LLM 不可用/输出异常返回 None（调用方回退规则）；模型成功但无合格内容返回 []。"""
+    if not posts:
+        return posts
+    cand = posts[:25]
+    lines = []
+    for i, p in enumerate(cand):
+        wid = p.get("weibo_id")
+        who = p.get("username") or p.get("author") or ""
+        c = (p.get("content") or "").replace("\n", " ").strip()[:220]
+        lines.append(f"[{i}] id={wid} @{who}: {c}")
+    catalog = "\n".join(lines)
+
+    system_prompt = (
+        "你是资深 AI 行业情报编辑，负责为「AI 行业舆情日报」挑选当天真正值得看的微博。严格执行两件事：\n"
+        "1) 相关性闸门：只保留与 AI 产业真正相关且有实质信息的内容，例如大模型、Agent、AI 产品、AI 芯片、"
+        "AI 编程、AI 办公、企业 AI 应用、AI 公司动态、融资并购、政策监管；剔除娱乐八卦、明星广告、带货种草、"
+        "纯情绪吐槽、个人碎碎念及一切与 AI 无关的内容——即使正文出现“AI”字样但本质是广告也要剔除。\n"
+        "2) 事件聚簇：多条微博报道同一事件、同一次发布或同一进展时，只保留信息最全或热度最高的 1 条，"
+        "其余视为重复，避免同一件事刷屏。\n"
+        "只输出 JSON，不要任何解释。"
+    )
+    user_prompt = (
+        "以下是候选微博（[序号] id=微博ID）：\n"
+        f"{catalog}\n\n"
+        "请输出 {\"keep\":[{\"index\": 序号, \"event\": \"一句话事件名\"}]}；"
+        "同一事件只保留一条；宁精勿滥，没有真正 AI 内容时 keep 输出空数组 []。"
+    )
+    data = _llm_chat_json(system_prompt, user_prompt)
+    if not data:
+        return None
+    keep = data.get("keep")
+    if not isinstance(keep, list):
+        return None
+    keep_indexes = set()
+    event_by_index = {}
+    for item in keep:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("index"))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= idx < len(cand):
+            keep_indexes.add(idx)
+            ev = item.get("event")
+            if ev:
+                event_by_index[idx] = str(ev)[:60]
+    # 按原热度顺序收集（LLM 只做筛选/合并，不负责重排）
+    chosen = []
+    for idx, post in enumerate(cand):
+        if idx in keep_indexes:
+            if idx in event_by_index:
+                post["event_name"] = event_by_index[idx]
+            chosen.append(post)
+    print(f"[llm-clean] in={len(cand)} keep={len(chosen)}", flush=True)
+    return chosen
+
+
 def _clean_daily_posts(posts):
+    """每日热点清洗：规则（广告/低信息）初筛 → LLM 相关性闸门+事件聚簇；
+    LLM 不可用或疑似误判全空时，回退到规则同话题去重，保证不阻塞、不跑空。"""
     try:
         open('/tmp/cleanup_debug.log','a').write(f'called in={len(posts)}\n')
     except Exception: pass
@@ -414,10 +537,32 @@ def _clean_daily_posts(posts):
         if _is_low_info(c):
             dropped_low += 1; continue
         out.append(p)
-    before = len(out)
-    out = _dedupe_same_topic(out)
-    print(f"[cleanup] in={len(posts)} drop_ad={dropped_ad} drop_low={dropped_low} after_dedupe={len(out)}", flush=True)
-    return out
+
+    # 规则兜底（LLM 不可用时的结果，行为与旧版一致）
+    rule_out = _dedupe_same_topic(out)
+
+    llm_out = None
+    try:
+        llm_out = _llm_select_and_cluster(out)
+    except Exception as e:
+        print(f"[llm-clean] error, fallback to rules: {type(e).__name__}: {e}", flush=True)
+        llm_out = None
+
+    if llm_out is None:
+        print(f"[cleanup] in={len(posts)} drop_ad={dropped_ad} drop_low={dropped_low} "
+              f"after_dedupe(rule)={len(rule_out)} | LLM unavailable, rules used", flush=True)
+        return rule_out
+
+    # 护栏：LLM 判空但规则侧仍有多条强 AI 相关帖，疑似误判 → 回退规则
+    if not llm_out:
+        strong = [p for p in rule_out if _is_ai_relevant(p.get("content", ""))]
+        if len(strong) >= 3:
+            print(f"[cleanup] LLM keep=0 but {len(strong)} strong-AI rule posts; fallback to rules", flush=True)
+            return rule_out
+
+    print(f"[cleanup] in={len(posts)} drop_ad={dropped_ad} drop_low={dropped_low} "
+          f"rule={len(rule_out)} llm_event_keep={len(llm_out)}", flush=True)
+    return llm_out
 # ---------- 清洗 end ----------
 
 def get_hot_weibo(limit: int = 20, min_engagement: int = 0,
