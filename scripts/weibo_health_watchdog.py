@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 微博综合健康看门狗（云端，不依赖本地电脑）。
-定时经手机住宅 socks5 隧道，带 Cookie 请求 m.weibo.cn/api/config，一次探测同时覆盖：
+定时经住宅 socks5 隧道(N100主/手机备)，带 Cookie 请求 m.weibo.cn/api/config，一次探测同时覆盖：
   1) 隧道是否可用；2) /etc/hosts 固定的微博 IP 是否仍有效；3) Cookie 登录态 (data.login)。
 仅在「状态变化」时由 codex-bridge 发飞书群：健康->异常发告警、异常->健康发恢复；
 同一异常持续超过 REMIND_AFTER 秒会再提醒一次，避免告警沉底。
@@ -123,7 +123,7 @@ def save_state(status, ts, detail):
 
 ALERT_TEXT = {
     "COOKIE_INVALID": "⚠️ 微博 Cookie 已失效，自动采集将无法获取数据。\n请重新登录微博并更新服务器 .env 的 WEIBO_COOKIE（参考之前的更新流程）。",
-    "LINK_DOWN": "⚠️ 微博住宅链路异常：经手机 socks5 无法正常访问 m.weibo.cn。\n可能是隧道断开或 /etc/hosts 固定的微博IP已失效；隧道看门狗会自动尝试重连，若持续请检查小米手机 Termux 与网络。",
+    "LINK_DOWN": "⚠️ 微博住宅链路异常：经手机 socks5 无法正常访问 m.weibo.cn。\n可能是隧道断开或 /etc/hosts 固定的微博IP已失效；隧道看门狗会自动尝试重连，若持续请检查 N100 代理容器(socks5/frpc)；若用手机热备再检查 Termux。",
 }
 
 

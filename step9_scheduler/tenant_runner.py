@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 BJ_TZ = timezone(timedelta(hours=8))
@@ -90,6 +91,30 @@ def _get_feishu_sender(tenant_key: str = None):
         return None
 
 
+def _hot_summary(text: str, limit: int = 140) -> str:
+    """把微博正文整理成完整短句：去换行/多空格、去掉“…全文”残留，
+    超长时在句末标点处收尾，避免出现“直接把 Home”这种半句。"""
+    s = re.sub(r'\s+', ' ', (text or '').replace('\n', ' ')).strip()
+    s = re.sub(r'(…|\.\.)?\s*(全文|展开全文|展开)\s*$', '', s).strip()
+    s = s.replace(' ...全文', '').replace('…全文', '').strip()
+    if len(s) <= limit:
+        return s
+    cut = s[:limit]
+    # 优先在句末标点收尾（阈值 0.4，避免“逗号长句、句号偏早”被硬截成半句）
+    end = -1
+    for ch in ('。', '！', '？', '；', '…'):
+        end = max(end, cut.rfind(ch))
+    if end >= int(limit * 0.4):
+        return cut[:end + 1].rstrip()
+    # 退而在逗号/顿号/冒号等停顿处收尾，不在词中间断开
+    pause = -1
+    for ch in ('，', '、', ',', '：'):
+        pause = max(pause, cut.rfind(ch))
+    if pause >= int(limit * 0.6):
+        return cut[:pause].rstrip() + '…'
+    return cut.rstrip() + '…'
+
+
 def _extract_report_info(report_content: str, data: dict) -> dict:
     """
     从日报内容和 API 数据中提取飞书消息所需信息
@@ -110,10 +135,10 @@ def _extract_report_info(report_content: str, data: dict) -> dict:
         'sentiment_summary': '',
     }
 
-    # 从 API 数据提取热点 TOP5
+    # 从 API 数据提取当日 AI 热点（条数随当天真 AI 事件浮动，宁精勿滥，最多10条）
     hot_data = data.get('hot_weibo', {}).get('data', [])
-    for p in hot_data[:5]:
-        content = (p.get('content') or '')[:50].replace('\n', ' ')
+    for p in hot_data[:10]:
+        content = _hot_summary(p.get('content') or '')
         username = p.get('username', '未知')
         info['hot_topics'].append(f'**{username}**：{content}')
 

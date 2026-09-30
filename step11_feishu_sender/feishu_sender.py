@@ -187,10 +187,10 @@ class FeishuSender:
             lines.append(f"**客户**：{tenant_name}")
         lines.append("")
 
-        # 一、今日热点TOP5
-        lines.append("**一、今日热点 TOP5**")
+        # 一、今日热点（条数随当天真 AI 事件浮动）
+        lines.append(f"**一、今日热点（{len(hot_topics)}条）**")
         if hot_topics:
-            for i, topic in enumerate(hot_topics[:5], 1):
+            for i, topic in enumerate(hot_topics, 1):
                 lines.append(f"{i}. {topic}")
         else:
             lines.append("暂无热点数据")
@@ -400,9 +400,9 @@ class FeishuAppSender:
             lines.append(f"**客户**：{tenant_name}")
         lines.append("")
 
-        lines.append("**一、今日热点 TOP5**")
+        lines.append(f"**一、今日热点（{len(hot_topics)}条）**")
         if hot_topics:
-            for i, topic in enumerate(hot_topics[:5], 1):
+            for i, topic in enumerate(hot_topics, 1):
                 lines.append(f"{i}. {topic}")
         else:
             lines.append("暂无热点数据")
