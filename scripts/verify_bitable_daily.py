@@ -7,12 +7,15 @@
 仅用标准库；凭据从 /opt/Weibo-Analyst/.env 读取。
 DRY_RUN=1 时只打印不发群。
 """
-import os, sys, json, datetime, urllib.request, urllib.error, traceback
+import os, sys, re, json, datetime, urllib.request, urllib.error, traceback
 
 ENV_PATH = "/opt/Weibo-Analyst/.env"
 BASE = "NRS9bfc2dabZvJsM133csK8Inee"
 TABLE = "tblBL0YqGzZlvFon"
-EXPECT = int(os.environ.get("EXPECT_COUNT", "10"))
+EXPECT = int(os.environ.get("EXPECT_COUNT", "10"))  # 仅在接口基准不可用时的兜底参考
+# 脚本与 API 同机，优先走本地 nginx 门面（免 key、免 Cloudflare UA 拦截、最稳）
+API_YESTERDAY = os.environ.get(
+    "API_YESTERDAY_URL", "http://127.0.0.1:8082/data/hot-yesterday")
 PREFIX = os.environ.get("MSG_PREFIX", "")
 LOG = "/opt/Weibo-Analyst/logs/verify_bitable.log"
 BJ = datetime.timezone(datetime.timedelta(hours=8))
@@ -117,6 +120,44 @@ def as_day(v):
     return s[:10] if len(s) >= 10 else s
 
 
+def wid(x):
+    """从 weibo_id 或微博链接里提取帖子 id（末尾长数字）。"""
+    if x is None:
+        return ""
+    if isinstance(x, (int, float)):
+        return str(int(x))
+    m = re.findall(r"\d{6,}", str(x))
+    return m[-1] if m else ""
+
+
+def fetch_expect():
+    """以 hot-yesterday 接口实际返回为"应写入"基准。
+    返回 (expect_n, expect_ids)；接口不可用时返回 (None, set())。"""
+    try:
+        req = urllib.request.Request(
+            API_YESTERDAY, method="GET",
+            headers={"User-Agent": "Mozilla/5.0 (weibo-verify/1.0)"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        arr = d.get("data")
+        if isinstance(arr, dict):
+            arr = arr.get("records") or arr.get("data")
+        if not isinstance(arr, list):
+            return None, set()
+        ids = set()
+        for x in arr:
+            if isinstance(x, dict):
+                w = wid(x.get("weibo_id")) or wid(x.get("url"))
+            else:
+                w = wid(x)
+            if w:
+                ids.add(w)
+        return len(arr), ids
+    except Exception as e:
+        log("WARN fetch_expect: %s" % e)
+        return None, set()
+
+
 def send(token, chat, text):
     if os.environ.get("DRY_RUN") == "1":
         log("=== DRY_RUN，不发群。以下为消息内容 ===")
@@ -137,16 +178,21 @@ def main():
 
     now = datetime.datetime.now(BJ)
     target = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # 以 hot-yesterday 接口实际返回为"应写入"基准（条数随当天真 AI 事件浮动）
+    expect_n, expect_ids = fetch_expect()
     items = fetch_all(token)
 
     rows = []
     for it in items:
         f = it.get("fields", {})
+        link = as_url(f.get("微博链接"))
         rows.append({
             "date": as_day(f.get("日期")),
             "title": as_text(f.get("标题")),
             "author": as_text(f.get("作者")),
-            "link": as_url(f.get("微博链接")),
+            "link": link,
+            "wid": wid(link),
             "hot": f.get("热度"),
             "content": as_text(f.get("原始内容")),
             "ai": as_text(f.get("AI摘要")),
@@ -161,60 +207,73 @@ def main():
         dist[r["date"]] = dist.get(r["date"], 0) + 1
     t = [r for r in rows if r["date"] == target]
     n = len(t)
-    links = [r["link"] for r in t if r["link"]]
-    uniq = len(set(links))
+    got_links = [r["link"] for r in t if r["link"]]
+    uniq = len(set(got_links))
+    got_ids = set(r["wid"] for r in t if r["wid"])
     base_ok = sum(1 for r in t if r["title"] and r["author"] and r["link"]
                   and r["hot"] is not None and r["content"])
     ai_ok = sum(1 for r in t if r["ai"] and r["imp"] and r["biz"] and r["tag"])
 
-    problems = []
+    hard, soft = [], []
+    dup = bool(n) and uniq != n
+    base_missing = bool(n) and base_ok != n
+    count_missing = count_extra = False
     if n == 0:
-        problems.append("目标日 %s 无任何记录，09:05 定时工作流可能未执行/端点异常" % target)
-    elif n < EXPECT:
-        problems.append("目标日仅 %d 条（期望 %d），数据可能未就绪或被截断" % (n, EXPECT))
-    elif n > EXPECT:
-        problems.append("目标日 %d 条（期望 %d），疑似手动按钮重复写入，需去重" % (n, EXPECT))
-    if n and uniq != n:
-        problems.append("目标日链接重复：%d 条记录仅 %d 个唯一链接" % (n, uniq))
-    if n and base_ok != n:
-        problems.append("基础字段缺失：仅 %d/%d 条齐全" % (base_ok, n))
-
-    ai_warn = (n == EXPECT and ai_ok < n)
-    if ai_warn:
-        problems.append("AI 字段仍在生成：%d/%d 条完成（异步，可稍后复查）" % (ai_ok, n))
-
-    # 硬失败：没跑 / 条数不对 / 重复 / 基础字段缺失；AI 异步延迟仅警告
-    hard_fail = any("AI 字段仍在生成" not in p for p in problems) and bool(problems) and not ai_warn
-    if ai_warn and not [p for p in problems if "AI 字段仍在生成" not in p]:
-        hard_fail = False
-    success = (n == EXPECT and uniq == n and base_ok == n)
-
-    icon = "✅" if success and not ai_warn else ("⚠️" if success and ai_warn else "❌")
-    if not success:
-        verdict = "FAILED"
-    elif ai_warn:
-        verdict = "WARNING"
+        hard.append("目标日 %s 无任何记录，09:05 定时工作流可能未执行/端点异常" % target)
     else:
-        verdict = "SUCCESS"
+        if dup:
+            hard.append("目标日链接重复：%d 条记录仅 %d 个唯一链接" % (n, uniq))
+        if base_missing:
+            hard.append("基础字段缺失：仅 %d/%d 条齐全" % (base_ok, n))
+        if expect_n is not None:
+            missing = sorted(expect_ids - got_ids)
+            extra = sorted(got_ids - expect_ids)
+            count_missing, count_extra = bool(missing), bool(extra)
+            if missing:
+                hard.append("接口基准 %d 条，表内缺 %d 条（id 尾号 %s），数据可能未就绪/被截断"
+                            % (expect_n, len(missing),
+                               ",".join(x[-6:] for x in missing[:5])))
+            if extra:
+                hard.append("表内比接口基准多 %d 条（id 尾号 %s），疑似重复/多写入"
+                            % (len(extra), ",".join(x[-6:] for x in extra[:5])))
+
+    ai_warn = bool(n) and ai_ok < n
+    if ai_warn:
+        soft.append("AI 字段仍在生成：%d/%d 条完成（异步，可稍后复查）" % (ai_ok, n))
+    if expect_n is None and n:
+        soft.append("无法获取接口基准条数，完整性未能核验，建议人工复查")
+
+    if hard:
+        verdict, icon = "FAILED", "❌"
+    elif ai_warn or expect_n is None:
+        verdict, icon = "WARNING", "⚠️"
+    else:
+        verdict, icon = "SUCCESS", "✅"
+    benchmark = ("接口基准 %d 条" % expect_n) if expect_n is not None \
+        else "接口基准不可用（兜底期望 %d）" % EXPECT
+    count_icon = ("✅" if (expect_n is not None and n == expect_n)
+                  else ("⚠️" if expect_n is None else "❌"))
+    base_label = ("%d" % expect_n) if expect_n is not None else "?"
 
     dist_str = " ".join("%s:%d" % (k, v) for k, v in sorted(dist.items()))
     lines = [
         "%s %s微博多维表格·每日自动核对" % (icon, PREFIX),
-        "核对目标日：%s（T-1 TOP%d）" % (target, EXPECT),
+        "核对目标日：%s（T-1，%s）" % (target, benchmark),
         "运行时间：%s" % now.strftime("%Y-%m-%d %H:%M"),
         "表内总记录：%d 条（%s）" % (total, dist_str),
-        "目标日新增：%d 条 %s" % (n, "✅" if n == EXPECT else "❌"),
+        "目标日新增：%d 条（基准 %s）%s" % (n, base_label, count_icon),
         "链接去重：%d/%d 唯一 %s" % (uniq, n, "✅" if uniq == n else "❌"),
         "基础字段：%d/%d 齐全 %s" % (base_ok, n, "✅" if base_ok == n else "❌"),
         "AI分析字段：%d/%d 已生成 %s" % (ai_ok, n, "✅" if ai_ok == n else "⚠️"),
         "结论：%s" % verdict,
     ]
-    if problems:
+    allp = hard + soft
+    if allp:
         lines.append("问题/建议：")
-        for p in problems:
+        for p in allp:
             lines.append("· " + p)
-    if success and not ai_warn:
-        lines.append("09:05 定时工作流落表正常，多维表格已是当天 T-1 TOP%d。" % EXPECT)
+    if verdict == "SUCCESS":
+        lines.append("09:05 定时工作流落表正常，多维表格已是当天 T-1 热点（%d 条，LLM 相关性闸门清洗，条数随当天真 AI 事件浮动）。" % n)
     msg = "\n".join(lines)
 
     r = send(token, chat, msg)
@@ -223,7 +282,7 @@ def main():
     if r.get("code") not in (0, -1):
         log("send error: %s" % r)
     print("VERDICT=%s" % verdict)
-    return 0 if success else 2
+    return 0 if verdict in ("SUCCESS", "WARNING") else 2
 
 
 if __name__ == "__main__":
