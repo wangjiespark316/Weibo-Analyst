@@ -3,6 +3,7 @@
 import fcntl
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -28,6 +29,43 @@ def _request(method, url, token=None, **kwargs):
     if result.get('code') != 0:
         raise RuntimeError(f'Feishu API {result.get("code")}: {result.get("msg")}')
     return result.get('data') or {}
+
+
+# 仅对网络抖动 / 限流 / 网关错误重试；飞书业务错误（权限、字段、参数）快速失败。
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+
+
+def _request_with_retry(method, url, token=None, max_retries=3, **kwargs):
+    headers = kwargs.pop('headers', {})
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    last_exc = None
+    for attempt in range(max_retries):
+        try:
+            response = requests.request(method, url, headers=headers, timeout=20, **kwargs)
+            response.raise_for_status()
+            result = response.json()
+            if result.get('code') != 0:
+                # 飞书业务错误：重试无益，立即抛出
+                raise RuntimeError(
+                    f'Feishu API {result.get("code")}: {result.get("msg")}')
+            return result.get('data') or {}
+        except RuntimeError:
+            raise
+        except requests.HTTPError as exc:
+            last_exc = exc
+            status = getattr(exc.response, 'status_code', 0)
+            if status in _RETRY_STATUS and attempt < max_retries - 1:
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s
+                continue
+            raise
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            last_exc = exc
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+    raise last_exc
 
 
 def _token():
@@ -65,7 +103,7 @@ def _existing_ids(token):
         params = {'page_size': 500}
         if page_token:
             params['page_token'] = page_token
-        data = _request('GET', f'{API_ROOT}/records', token, params=params)
+        data = _request_with_retry('GET', f'{API_ROOT}/records', token, params=params)
         for record in data.get('items') or []:
             post_id = _post_id((record.get('fields') or {}).get('微博链接'))
             if post_id:
@@ -89,8 +127,9 @@ def _fields(post):
     }
 
 
-def sync_yesterday(dry_run=False):
-    date = (datetime.now(BJ_TZ).date() - timedelta(days=1)).isoformat()
+def sync_yesterday(dry_run=False, date=None):
+    if not date:
+        date = (datetime.now(BJ_TZ).date() - timedelta(days=1)).isoformat()
     marker = PROJECT_ROOT / 'logs' / 'crawl_ready' / f'{date}.json'
     if not marker.is_file():
         raise RuntimeError(f'{date} daily crawl is not complete')
@@ -115,7 +154,8 @@ def sync_yesterday(dry_run=False):
                 skipped += 1
                 continue
             if not dry_run:
-                _request('POST', f'{API_ROOT}/records', token, json={'fields': _fields(post)})
+                _request_with_retry('POST', f'{API_ROOT}/records', token,
+                                    json={'fields': _fields(post)})
             existing.add(post_id)
             created += 1
         return {'date': date, 'selected': len(result.get('data') or []),

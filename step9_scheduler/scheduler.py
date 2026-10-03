@@ -190,6 +190,18 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
     else:
         print('[Scheduler] 跳过数据采集（--skip-crawl）')
 
+    # 多维表主动落表（push，替代已停用的飞书定时 pull 工作流）：
+    # 服务器在 T-1 补采就绪后，主动调飞书 OpenAPI 写表，按微博链接查重、
+    # 写表失败有限次重试。异常只告警、不阻断后续租户日报（重跑幂等）。
+    try:
+        from step7_api_service.base_daily_sync import sync_yesterday
+        sync_result = sync_yesterday(date=report_date)
+        print(f'[Scheduler] 多维表主动落表完成：新增 {sync_result["created"]} 条，'
+              f'跳过(已存在) {sync_result["skipped"]} 条，共选 {sync_result["selected"]} 条')
+    except Exception as sync_err:
+        print(f'[Scheduler] ⚠️ 多维表主动落表失败：{type(sync_err).__name__}: {sync_err}')
+        print('[Scheduler] （不阻断日报；落表幂等，可稍后重跑）')
+
     tenants = load_tenants()
 
     if tenant_filter:

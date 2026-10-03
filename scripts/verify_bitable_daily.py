@@ -262,9 +262,9 @@ def main():
         "运行时间：%s" % now.strftime("%Y-%m-%d %H:%M"),
         "表内总记录：%d 条（%s）" % (total, dist_str),
         "目标日新增：%d 条（基准 %s）%s" % (n, base_label, count_icon),
-        "链接去重：%d/%d 唯一 %s" % (uniq, n, "✅" if uniq == n else "❌"),
-        "基础字段：%d/%d 齐全 %s" % (base_ok, n, "✅" if base_ok == n else "❌"),
-        "AI分析字段：%d/%d 已生成 %s" % (ai_ok, n, "✅" if ai_ok == n else "⚠️"),
+        "链接去重：%d/%d 唯一 %s" % (uniq, n, "✅" if (n and uniq == n) else ("—" if n == 0 else "❌")),
+        "基础字段：%d/%d 齐全 %s" % (base_ok, n, "✅" if (n and base_ok == n) else ("—" if n == 0 else "❌")),
+        "AI分析字段：%d/%d 已生成 %s" % (ai_ok, n, "✅" if (n and ai_ok == n) else ("—" if n == 0 else "⚠️")),
         "结论：%s" % verdict,
     ]
     allp = hard + soft
