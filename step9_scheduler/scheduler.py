@@ -26,6 +26,7 @@ import sys
 import time
 import argparse
 import json
+import gc
 from datetime import datetime, timedelta, timezone
 
 # 北京时区（采集/日报时刻均按北京时间调度）
@@ -226,6 +227,7 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
         print(f"\n[{i}/{len(tenant_keys)}] 处理租户：{tenant_key}（数据日期 {report_date}）")
         result = run_tenant(tenant_key, report_date=report_date)
         results.append(result)
+        gc.collect()  # 租户间释放该租户日报临时对象，降低小内存机峰值叠加
 
         if result['success']:
             print(f"  ✅ {result['tenant_name']}")
@@ -277,6 +279,7 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
         import traceback
         traceback.print_exc()
 
+    gc.collect()  # 日报 + AI 流水线结束后释放，避免守护进程日累积
     return results
 
 

@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import time
+import gc
 import traceback
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -402,6 +403,7 @@ def run_daily_pipeline(date_str=None, skip_steps=None):
             
             result = execute_step_with_retry(step_info, date_str)
             results[step_key] = {**result, "name": step_name}
+            gc.collect()  # 步骤间释放该分析器加载的帖子/评论/LLM临时对象，降低峰值叠加
             
             if result.get("status") == "success":
                 success_count += 1
