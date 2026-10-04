@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WEIBO SIGNAL · AI 讨论信号观测台</title>
+<meta name="description" content="汇集微博公开讨论，实时观测 AI 行业的热点、趋势与情绪。数据按北京时间自然日更新。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A1210'/%3E%3Cpath d='M5 17h3l2-6 3 12 3-15 3 9h3' fill='none' stroke='%2334E8B0' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://miaoda.feishu.cn" crossorigin />
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="style.css?v=obs1" />
+</head>
+<body>
+
+<!-- 颗粒 / 扫描氛围层 -->
+<div class="atmosphere" aria-hidden="true"></div>
+
+<!-- ===== 顶部信号状态栏 ===== -->
+<header class="statusbar">
+  <div class="statusbar-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M4 17h3.2l2.1-7 3.1 13 3.1-16 3 10h3.1l1.6-4H28" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </span>
+      <span class="brand-name">WEIBO&nbsp;SIGNAL</span>
+    </a>
+    <div class="status-right">
+      <span class="live" id="live-badge">
+        <span class="live-dot"></span><span class="live-text">观测中</span>
+      </span>
+      <span class="status-sep"></span>
+      <span class="clock" id="clock">--:--:--</span>
+      <span class="status-sep"></span>
+      <span class="updated" id="updated">更新于 --:--</span>
+    </div>
+  </div>
+</header>
+
+<main id="top" class="wrap">
+
+  <!-- ===== HERO ===== -->
+  <section class="hero">
+    <p class="kicker"><span class="kicker-tick"></span>AI 行业舆情&nbsp;·&nbsp;公开观测视图</p>
+    <h1 class="hero-title">看见今天，<br />AI 如何被讨论。</h1>
+    <p class="hero-sub">汇集微博公开讨论，实时追踪 AI 行业的热点、趋势与情绪。数据按北京时间自然日更新；昨日榜单在每日补采完成后发布。</p>
+
+    <div class="controls">
+      <div class="seg" role="tablist" aria-label="时间范围">
+        <button class="seg-btn is-active" id="tab-today" role="tab" aria-selected="true">今日</button>
+        <button class="seg-btn" id="tab-yesterday" role="tab" aria-selected="false">昨日全日</button>
+      </div>
+      <button class="btn-refresh" id="btn-refresh">
+        <svg class="refresh-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11A8 8 0 0 0 6.3 6.3L4 8.5M4 4v4.5H8.5M4 13a8 8 0 0 0 13.7 4.7L20 15.5M20 20v-4.5H15.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>刷新观测</span>
+      </button>
+    </div>
+
+    <div class="readouts">
+      <div class="readout" id="ro-today">
+        <span class="readout-v" id="post-count">–</span>
+        <span class="readout-l" id="count-label">今日相关讨论</span>
+        <span class="readout-note" id="count-note">今日 00:00 起 · 持续更新</span>
+      </div>
+      <div class="readout">
+        <span class="readout-v" id="mention-count">–</span>
+        <span class="readout-l">近 7 天总提及</span>
+        <span class="readout-note" id="mention-note">帖子与评论合计</span>
+      </div>
+      <div class="readout">
+        <span class="readout-v" id="positive-ratio">–</span>
+        <span class="readout-l">正向评论占比</span>
+        <span class="readout-note">基于已采集评论抽样</span>
+      </div>
+      <div class="readout">
+        <span class="readout-v" id="sample-size">–</span>
+        <span class="readout-l">情感分析样本</span>
+        <span class="readout-note">样本统计 · 非全量观点</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 签名：信号波形 ===== -->
+  <section class="panel wave-panel" id="wave-section">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">AI 讨论信号波形</h2>
+        <p class="panel-sub">近 7 天 · 帖子与评论的每日提及量</p>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><i class="legend-dot legend-post"></i>帖子</span>
+        <span class="legend-item"><i class="legend-dot legend-comment"></i>评论</span>
+      </div>
+    </div>
+    <div class="wave-stage">
+      <canvas id="wave" aria-label="近7天AI讨论趋势波形"></canvas>
+      <div class="wave-readout" id="wave-readout">
+        <div class="wr-day" id="wr-day">—</div>
+        <div class="wr-row"><span class="wr-dot legend-post"></span><span class="wr-k">帖子</span><span class="wr-v" id="wr-post">—</span></div>
+        <div class="wr-row"><span class="wr-dot legend-comment"></span><span class="wr-k">评论</span><span class="wr-v" id="wr-comment">—</span></div>
+        <div class="wr-row wr-total"><span class="wr-k">合计</span><span class="wr-v" id="wr-total">—</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 情感观测 ===== -->
+  <section class="panel sentiment-panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">评论情感观测</h2>
+        <p class="panel-sub">模型对已采集评论的情感判定 · 仅用于观察讨论方向</p>
+      </div>
+      <span class="panel-tag" id="sent-sample-tag">抽样 —</span>
+    </div>
+
+    <div class="gauge">
+      <div class="gauge-track">
+        <div class="gauge-seg gauge-pos" id="gauge-pos"></div>
+        <div class="gauge-seg gauge-neu" id="gauge-neu"></div>
+        <div class="gauge-seg gauge-neg" id="gauge-neg"></div>
+        <div class="gauge-ticks" aria-hidden="true"></div>
+      </div>
+      <div class="gauge-legend">
+        <div class="gl"><span class="gl-dot gl-pos"></span><span class="gl-k">正向</span><span class="gl-v" id="sent-pos">—</span></div>
+        <div class="gl"><span class="gl-dot gl-neu"></span><span class="gl-k">中性</span><span class="gl-v" id="sent-neu">—</span></div>
+        <div class="gl"><span class="gl-dot gl-neg"></span><span class="gl-k">负向</span><span class="gl-v" id="sent-neg">—</span></div>
+      </div>
+    </div>
+
+    <div class="spectrum">
+      <div class="spectrum-head">
+        <h3 class="spectrum-title">负面观点频谱</h3>
+        <span class="spectrum-sub">高频负面观点词 · 出现次数</span>
+      </div>
+      <div class="spectrum-bars" id="neg-spectrum"></div>
+    </div>
+  </section>
+
+  <!-- ===== 热点电讯 ===== -->
+  <section class="panel posts-panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">热点电讯</h2>
+        <p class="panel-sub" id="posts-label">今日 · 按热度排序</p>
+      </div>
+      <span class="panel-tag" id="posts-count-tag">— 条</span>
+    </div>
+    <div class="wire" id="posts"></div>
+  </section>
+
+  <!-- ===== 页脚 ===== -->
+  <footer class="footer">
+    <div class="method">
+      <p class="method-title">观测口径</p>
+      <p class="method-text">数据来自微博公开讨论，经 AI 行业相关性筛选与同一事件合并；热点条数随当日真实 AI 事件数浮动，宁精勿滥。情感为模型对已采集评论的抽样判定，不代表微博全量观点。过滤器拦截不等同于实际广告数量。本页面不做投资建议。</p>
+    </div>
+    <div class="beian">
+      <p class="copyright">Copyright © 2026 WEIBO SIGNAL · 版权所有</p>
+      <p class="beian-links">
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">豫ICP备2026047343号</a>
+        <span class="beian-sep">|</span>
+        <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=41130202000594" target="_blank" rel="noopener">
+          <img class="gongan-ic" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAWklEQVR42mNgwANrMDBhTA4gHoqM4Q0wMjIgB5KGYQ8wMogPBcSjC1UxMjEwCuUxMjEwMozrMDBhTA4gMpBqMDIhN4GqgRkMDEzA6UxMjEwCuUxMjEwCnSAEAKuFDEYKf3rLAAAAAElFTkSuQmCC" alt="" />豫公网安备41130202000594号
+        </a>
+      </p>
+    </div>
+  </footer>
+
+</main>
+
+<script src="app.js?v=obs1"></script>
+</body>
+</html>

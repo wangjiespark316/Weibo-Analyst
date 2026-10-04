@@ -1,0 +1,7 @@
+@media (max-width: 600px) {
+  .site-shell, .hero, .content-grid, .panel { min-width: 0; }
+  .period-switch { display: flex; flex: 1 1 100%; width: 100%; max-width: 100%; min-width: 0; }
+  .period-switch button { flex: 1 1 0; min-width: 0; padding: 10px 5px; font-size: 12px; white-space: nowrap; }
+  .hero p { overflow-wrap: anywhere; }
+  .trend-caption { gap: 12px; overflow-x: auto; white-space: nowrap; }
+}
