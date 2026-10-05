@@ -430,6 +430,38 @@ def get_post_id_by_weibo_id(conn, weibo_id):
         return row[0] if row else None
 
 
+def get_comment_crawl_state(conn, weibo_id):
+    """返回 (comment_crawl_status, 已存评论数)。
+    comment_crawl_status: 0=待采(新帖) 1=成功 2=失败；帖子查不到时按 0 处理。"""
+    with conn.cursor() as cursor:
+        cursor.execute(
+            "SELECT comment_crawl_status FROM weibo_posts WHERE weibo_id=%s",
+            (weibo_id,))
+        row = cursor.fetchone()
+        status = int(row[0]) if row and row[0] is not None else 0
+        cursor.execute(
+            "SELECT COUNT(*) FROM weibo_comments WHERE weibo_id=%s",
+            (weibo_id,))
+        cnt_row = cursor.fetchone()
+        stored_n = int(cnt_row[0]) if cnt_row else 0
+    return status, stored_n
+
+
+def should_fetch_comments(status, stored_n, comment_count, max_comments):
+    """评论懒加载判据，决定是否需要发起评论 API：
+    - status != 1（新帖 0 / 上次失败 2）→ 采；
+    - 已成功且已抓满分析上限 max_comments → 跳过；
+    - 已成功且评论总数本就 ≤ 已抓数（已抓全）→ 跳过；
+    - 已成功但评论增长、尚未抓满 → 补采。"""
+    if status != 1:
+        return True
+    if stored_n >= max_comments:
+        return False
+    if (comment_count or 0) <= stored_n:
+        return False
+    return True
+
+
 # ============================================================
 # 评论采集（复用现有 hotflow 接口逻辑）
 # ============================================================
@@ -759,8 +791,9 @@ def collect_realtime_window(keywords, target='today', per_keyword=15, max_pages=
                 _LOGGER.error(f"  ⚠️ 帖子入库失败: {type(e).__name__}: {e}")
         _LOGGER.info(f"窗口候选 {len(window_posts)} 条 | 写入统计 {stats}")
 
-        # 3) 窗口内评论补采（仅评论数最高的若干帖）
+        # 3) 窗口内评论补采（仅评论数最高的若干帖；懒加载：已采够的帖跳过 API）
         new_comments = 0
+        comments_skipped = 0
         if fetch_comments_flag:
             cand = sorted([p for p in stored if (p.get('comment_count') or 0) > 0],
                           key=lambda x: x['comment_count'], reverse=True)[:comment_post_limit]
@@ -768,6 +801,17 @@ def collect_realtime_window(keywords, target='today', per_keyword=15, max_pages=
                          f"本次补采 Top{len(cand)}")
             for i, pd in enumerate(cand, 1):
                 wid = pd['weibo_id']
+                # 懒加载判据：已成功抓满/抓全的帖不再重复请求评论 API
+                try:
+                    _cstatus, _stored_n = get_comment_crawl_state(conn, wid)
+                except Exception:
+                    _cstatus, _stored_n = 0, 0
+                if not should_fetch_comments(_cstatus, _stored_n,
+                                             pd.get('comment_count'), max_comments):
+                    comments_skipped += 1
+                    _LOGGER.info(f"  ⏭️ 评论 {i}/{len(cand)} {wid[:12]} "
+                                 f"已采{_stored_n}条(status={_cstatus})，跳过")
+                    continue
                 try:
                     cs = fetch_comments(wid, max_comments)
                     post_id = get_post_id_by_weibo_id(conn, wid)
@@ -800,12 +844,13 @@ def collect_realtime_window(keywords, target='today', per_keyword=15, max_pages=
 
     result = {
         'ok': True, 'date': date_str, 'candidates': len(window_posts),
-        'new_comments': new_comments, 'before': before, 'after': after, **stats,
+        'new_comments': new_comments, 'comments_skipped': comments_skipped,
+        'before': before, 'after': after, **stats,
     }
     _LOGGER.info("=" * 60)
     _LOGGER.info(f"✅ 实时流采集完成：{date_str} 候选 {len(window_posts)}，"
                  f"新增 {stats['insert']} / 更新 {stats['update']} / 去重 {stats['dup']} / "
-                 f"失败 {stats['fail']}，评论写入动作 {new_comments}")
+                 f"失败 {stats['fail']}，评论写入动作 {new_comments} / 评论跳过 {comments_skipped}")
     _LOGGER.info("=" * 60)
     return result
 

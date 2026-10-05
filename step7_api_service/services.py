@@ -16,6 +16,7 @@ import re
 import time
 import json
 import signal
+import hashlib
 import threading
 from typing import Optional
 from datetime import datetime, timedelta, timezone
@@ -120,6 +121,48 @@ def _set_cache(key: str, data):
             json.dump(data, f, ensure_ascii=False, default=str)
     except Exception:
         pass  # 文件缓存失败不影响主流程
+
+
+# ---- 稳定结论缓存（长 TTL，按数据指纹复用，跳过 calc/enrich/LLM 重算）----
+# 独立子目录，避免被启动时的 _clear_expired_cache（只清顶层 .json）误删。
+_STABLE_DIR = os.path.join(_CACHE_DIR, 'stable')
+os.makedirs(_STABLE_DIR, exist_ok=True)
+# 稳定缓存 TTL：默认 7 天，仅作结论结构升级后的兜底失效；是否命中仍以数据指纹为准。
+_STABLE_CACHE_TTL = int(os.getenv('STABLE_CACHE_TTL', str(7 * 24 * 3600)))
+
+
+def _stable_file_path(key: str) -> str:
+    safe_key = key.replace(':', '_').replace('/', '_').replace(' ', '_')
+    return os.path.join(_STABLE_DIR, f'{safe_key}.json')
+
+
+def _get_stable(key: str):
+    """读取稳定结论缓存，返回 {fingerprint, result, ts} 或 None。"""
+    fpath = _stable_file_path(key)
+    if not os.path.exists(fpath):
+        return None
+    try:
+        if time.time() - os.path.getmtime(fpath) >= _STABLE_CACHE_TTL:
+            os.remove(fpath)
+            return None
+        with open(fpath, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+        if isinstance(payload, dict) and payload.get('fingerprint') and 'result' in payload:
+            return payload
+    except Exception:
+        pass
+    return None
+
+
+def _set_stable(key: str, fingerprint: str, result):
+    """写入稳定结论缓存（数据指纹 + 结论）。"""
+    try:
+        fpath = _stable_file_path(key)
+        with open(fpath, 'w', encoding='utf-8') as f:
+            json.dump({'fingerprint': fingerprint, 'result': result,
+                       'ts': time.time()}, f, ensure_ascii=False, default=str)
+    except Exception:
+        pass
 
 
 def _clear_expired_cache():
@@ -757,6 +800,35 @@ def get_hot_weibo(limit: int = 20, min_engagement: int = 0,
         _date_candidate_cap = max(limit * 6, int(os.getenv('API_DATE_CANDIDATE_CAP', '120')))
         query_limit_sql = 'LIMIT %s'
         query_limit_n = _date_candidate_cap if date_sql else limit * 5
+
+        # —— 数据指纹快速路径（省全文 / 省 calc / 省 enrich / 省 LLM）——
+        # 只取候选帖标识与互动量（不取 content 全文），算数据指纹；若与上次结论
+        # 指纹一致，说明候选集合一个没变，直接复用结论，跳过后续全部重算。
+        _stable_key = f'stable:{cache_key}'
+        _fingerprint = None
+        try:
+            fp_sql = f"""
+                SELECT weibo_id, like_count, comment_count, repost_count
+                FROM weibo_posts
+                WHERE (like_count + comment_count + repost_count) >= %s
+                {ds_sql}{kw_sql}{date_sql}{time_sql}{fresh_sql}{relevance_sql}
+                ORDER BY (like_count + comment_count + repost_count) DESC
+                {query_limit_sql}
+            """
+            fp_params = [min_engagement] + ds_params + kw_params + date_params + time_params + fresh_params + relevance_params
+            fp_params.append(query_limit_n)
+            fp_rows = db.fetch_all(fp_sql, tuple(fp_params))
+            _fingerprint = hashlib.sha1('|'.join(
+                f"{r['weibo_id']}:{r['like_count']}:{r['comment_count']}:{r['repost_count']}"
+                for r in fp_rows).encode('utf-8')).hexdigest()
+            _stable = _get_stable(_stable_key)
+            if _stable and _stable.get('fingerprint') == _fingerprint:
+                print(f'[STABLE-CACHE] HIT {cache_key[:48]} keep={_stable["result"].get("total")}')
+                return _stable['result']
+            print(f'[STABLE-CACHE] MISS fp={_fingerprint[:10]} rows={len(fp_rows)}')
+        except Exception as _fe:
+            print(f'[STABLE-CACHE] 指纹快速路径跳过: {type(_fe).__name__}: {_fe}')
+
         sql = f"""
             SELECT weibo_id, user_id, username, content, publish_time,
                    like_count, comment_count, repost_count, url
@@ -832,8 +904,11 @@ def get_hot_weibo(limit: int = 20, min_engagement: int = 0,
             if _dpt is not None and (_latest is None or _dpt > _latest):
                 _latest = _dpt
         _data_as_of = _latest.isoformat() if _latest is not None else None
-        return {"total": len(scored), "total_count": total_count,
-                "data_as_of": _data_as_of, "data": scored}
+        result = {"total": len(scored), "total_count": total_count,
+                  "data_as_of": _data_as_of, "data": scored}
+        if _fingerprint:
+            _set_stable(_stable_key, _fingerprint, result)
+        return result
 
     return _safe_call(_do, cache_key=cache_key,
                       fallback={"total": 0, "data": []})
