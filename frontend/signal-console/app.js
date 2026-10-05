@@ -43,7 +43,7 @@
         state.hot[mode] = null;
         state.status[mode] = (e && e.status === 503) ? 'pending' : 'error';
       })
-      .then(function () { renderPosts(); renderReadouts(); });
+      .then(function () { renderPosts(); renderReadouts(); stampUpdated(); });
   }
 
   /* ---------------- 时钟 / 更新时间 ---------------- */
@@ -51,9 +51,34 @@
     var d = new Date();
     $('clock').textContent = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
   }
+  // 取当前数据的真实「截至时间」：优先用后端 data_as_of（=本批最新微博发布时刻），
+  // 兜底从列表最新 publish_timestamp / publish_time 计算，绝不使用浏览器当前时间。
+  function asOfDate(mode) {
+    var h = state.hot[mode];
+    if (!h) return null;
+    if (h.data_as_of) {
+      var d0 = new Date(h.data_as_of);
+      if (!isNaN(d0)) return d0;
+    }
+    var latest = null;
+    (h.data || []).forEach(function (p) {
+      var ts = (p.publish_timestamp !== undefined && p.publish_timestamp !== null)
+        ? p.publish_timestamp : null;
+      if (ts === null && p.publish_time) {
+        var pd = new Date(p.publish_time);
+        if (!isNaN(pd)) ts = pd.getTime();
+      }
+      if (ts !== null && (latest === null || ts > latest)) latest = ts;
+    });
+    return latest === null ? null : new Date(latest);
+  }
   function stampUpdated() {
-    var d = new Date();
-    $('updated').textContent = '数据更新 ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var d = asOfDate(state.mode);
+    if (!d) { $('updated').textContent = '数据时间未知'; return; }
+    var hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    $('updated').textContent = state.mode === 'today'
+      ? '数据截至 ' + hm
+      : '昨日 ' + hm + ' 定稿';
   }
 
   /* ---------------- 数字动画 ---------------- */
@@ -495,7 +520,7 @@
     y.classList.toggle('is-active', mode === 'yesterday');
     y.setAttribute('aria-selected', mode === 'yesterday');
     if (state.status[mode] === null) ensureHot(mode);
-    else renderPosts();
+    else { renderPosts(); stampUpdated(); }
   }
   $('tab-today').addEventListener('click', function () { switchMode('today'); });
   $('tab-yesterday').addEventListener('click', function () { switchMode('yesterday'); });

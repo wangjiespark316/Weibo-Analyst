@@ -132,7 +132,7 @@ def load_schedule_config():
       report_time:   每日生成 T-1 自然日日报并推送的时刻，如 '08:30'
     读取失败回退默认值。
     """
-    default = {'collect_times': ['09:00', '13:00', '18:00', '22:00'],
+    default = {'collect_times': ['09:00', '11:30', '14:00', '16:30', '19:00', '22:00'],
                'report_time': '08:30'}
     try:
         import json

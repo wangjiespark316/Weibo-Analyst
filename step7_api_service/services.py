@@ -806,7 +806,34 @@ def get_hot_weibo(limit: int = 20, min_engagement: int = 0,
                 _it.setdefault('sentiment', None)
                 _it.setdefault('ai_status', 'pending')
         scored = _clean_daily_posts(scored)
-        return {"total": len(scored), "total_count": total_count, "data": scored}
+        # 数据截至时间：本批最新一条微博的发布时刻（100%来自数据，供前端展示真实新鲜度）
+        def _parse_bj_pt(_pt):
+            if _pt is None:
+                return None
+            if isinstance(_pt, datetime):
+                return _pt.replace(tzinfo=_BJ_TZ) if _pt.tzinfo is None else _pt.astimezone(_BJ_TZ)
+            if isinstance(_pt, str):
+                _s = _pt.strip().replace("Z", "+00:00")
+                _d = None
+                # Python 3.10 fromisoformat 只认 T 分隔，兼容库里空格分隔的 "YYYY-MM-DD HH:MM:SS"
+                for _cand in (_s, _s.replace(" ", "T")):
+                    try:
+                        _d = datetime.fromisoformat(_cand)
+                        break
+                    except ValueError:
+                        continue
+                if _d is None:
+                    return None
+                return _d.replace(tzinfo=_BJ_TZ) if _d.tzinfo is None else _d.astimezone(_BJ_TZ)
+            return None
+        _latest = None
+        for _it in scored:
+            _dpt = _parse_bj_pt(_it.get("publish_time"))
+            if _dpt is not None and (_latest is None or _dpt > _latest):
+                _latest = _dpt
+        _data_as_of = _latest.isoformat() if _latest is not None else None
+        return {"total": len(scored), "total_count": total_count,
+                "data_as_of": _data_as_of, "data": scored}
 
     return _safe_call(_do, cache_key=cache_key,
                       fallback={"total": 0, "data": []})
