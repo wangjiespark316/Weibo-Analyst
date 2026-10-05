@@ -115,10 +115,20 @@ def _existing_ids(token):
             raise RuntimeError('Feishu Base pagination missing page_token')
 
 
+def _date_text(value):
+    # 多维表「日期」是文本字段，历史格式 'YYYY-MM-DDTHH:MM:SS'；
+    # publish_time 可能是 datetime 对象，直接放入会导致 JSON 序列化失败。
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%dT%H:%M:%S')
+    if value:
+        return str(value)
+    return ''
+
+
 def _fields(post):
     return {
         '标题': post.get('content') or '',
-        '日期': post.get('publish_time') or '',
+        '日期': _date_text(post.get('publish_time')),
         '来源': '微博',
         '作者': post.get('username') or '',
         '微博链接': post['url'],

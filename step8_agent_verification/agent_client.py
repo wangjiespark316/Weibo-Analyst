@@ -78,12 +78,14 @@ def get_tenant(tenant_key: str) -> dict:
 # 第一步：API 获取数据（带 Authorization Header）
 # ============================================================
 
-def call_api(endpoint: str, params: dict = None, api_key: str = None) -> dict:
+def call_api(endpoint: str, params: dict = None, api_key: str = None,
+             timeout: float = 120) -> dict:
     """
     调用 FastAPI 接口。
     - X-API-Key：应用层网关密钥（main.py 全局中间件强制校验，取自环境变量 WEIBO_API_KEY）；
     - Authorization: Bearer <租户 api_key>：多租户鉴权，锁定 dataset_type（可选）。
     Agent 直连 uvicorn（WEIBO_API_BASE=http://127.0.0.1:8000，不经 Nginx 注入）时两道头都要带。
+    - timeout：单次请求超时（秒）。离线预热在后台、不阻塞用户，可传更大值。
     """
     url = f"{API_BASE}{endpoint}"
     headers = {}
@@ -92,12 +94,13 @@ def call_api(endpoint: str, params: dict = None, api_key: str = None) -> dict:
         headers['X-API-Key'] = gateway_key
     if api_key:
         headers['Authorization'] = f"Bearer {api_key}"
-    resp = requests.get(url, params=params, headers=headers, timeout=120)
+    resp = requests.get(url, params=params, headers=headers, timeout=timeout)
     resp.raise_for_status()
     return resp.json()
 
 
-def collect_all_data(tenant_key: str, analysis_date: str = None) -> dict:
+def collect_all_data(tenant_key: str, analysis_date: str = None,
+                     call_timeout: float = 120) -> dict:
     """
     Agent 工作流第一步：调用全部 API 收集数据（带租户 API Key）
 
@@ -105,6 +108,8 @@ def collect_all_data(tenant_key: str, analysis_date: str = None) -> dict:
       - 传入时：热点微博只取该自然日数据（服务端按 publish_time 精确过滤），
         不再做客户端「最近2天」截断，保证日报严格对应某一天（T-1 日报用）。
       - 不传时：保持旧行为（取最新并截断最近2天）。
+    call_timeout: 每个端点的单次超时（秒）。离线预热传更大值（如 280），
+      正式推送命中缓存后毫秒返回、用默认 120 即可。
     """
     tenant = get_tenant(tenant_key)
     api_key = tenant['api_key']
@@ -116,7 +121,8 @@ def collect_all_data(tenant_key: str, analysis_date: str = None) -> dict:
     if analysis_date:
         print(f"  → GET /api/hot-weibo?limit=30&date={analysis_date}（自然日精确取数）")
         raw_hot = call_api("/api/hot-weibo",
-                           {"limit": 30, "date": analysis_date}, api_key=api_key)
+                           {"limit": 30, "date": analysis_date}, api_key=api_key,
+                           timeout=call_timeout)
         if raw_hot and isinstance(raw_hot, dict) and 'data' in raw_hot:
             kept = raw_hot['data'][:15]
             raw_hot['data'] = kept
@@ -124,7 +130,8 @@ def collect_all_data(tenant_key: str, analysis_date: str = None) -> dict:
             print(f"    自然日 {analysis_date}：保留 {len(kept)} 条热点")
     else:
         print("  → GET /api/hot-weibo?limit=20 (Authorization: Bearer ***)")
-        raw_hot = call_api("/api/hot-weibo", {"limit": 20}, api_key=api_key)
+        raw_hot = call_api("/api/hot-weibo", {"limit": 20}, api_key=api_key,
+                           timeout=call_timeout)
         # 只保留最近2天的微博
         from datetime import datetime, timedelta
         cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
@@ -140,29 +147,34 @@ def collect_all_data(tenant_key: str, analysis_date: str = None) -> dict:
     data['keyword_trends'] = {}
     for kw in KEYWORDS:
         data['keyword_trends'][kw] = call_api(
-            "/api/keyword-trend", {"keyword": kw, "days": 30}, api_key=api_key
+            "/api/keyword-trend", {"keyword": kw, "days": 30}, api_key=api_key,
+            timeout=call_timeout
         )
 
     # 3. 情感分析
     print("  → GET /api/sentiment?sample_size=3000")
-    data['sentiment'] = call_api("/api/sentiment", {"sample_size": 3000}, api_key=api_key)
+    data['sentiment'] = call_api("/api/sentiment", {"sample_size": 3000},
+                                 api_key=api_key, timeout=call_timeout)
 
     # 4. 用户影响力（粉丝 + 互动）
     print("  → GET /api/influencers (followers + engagement)")
     data['influencers_followers'] = call_api(
-        "/api/influencers", {"type": "followers", "limit": 10}, api_key=api_key
+        "/api/influencers", {"type": "followers", "limit": 10}, api_key=api_key,
+        timeout=call_timeout
     )
     data['influencers_engagement'] = call_api(
-        "/api/influencers", {"type": "engagement", "limit": 10}, api_key=api_key
+        "/api/influencers", {"type": "engagement", "limit": 10}, api_key=api_key,
+        timeout=call_timeout
     )
 
     # 5. 数据概览（从日报接口取；指定自然日时带上 date，服务端不支持会自动忽略）
     if analysis_date:
         print(f"  → GET /api/daily-report?date={analysis_date}")
-        daily = call_api("/api/daily-report", {"date": analysis_date}, api_key=api_key)
+        daily = call_api("/api/daily-report", {"date": analysis_date}, api_key=api_key,
+                         timeout=call_timeout)
     else:
         print("  → GET /api/daily-report")
-        daily = call_api("/api/daily-report", api_key=api_key)
+        daily = call_api("/api/daily-report", api_key=api_key, timeout=call_timeout)
     data['daily_report_raw'] = daily
 
     print(f"[Agent] 数据收集完成：{len(data)} 个数据源")

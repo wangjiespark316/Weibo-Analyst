@@ -36,14 +36,14 @@ from .config import CACHE_TTL
 # 内存缓存: {cache_key: (timestamp, data)} — 有界，最大 100 条
 _memory_cache = {}
 # 内存缓存最大容量（防止无限增长导致 OOM）
-_CACHE_MAX_SIZE = int(os.getenv('API_CACHE_MAX_SIZE', '100'))
+_CACHE_MAX_SIZE = int(os.getenv('API_CACHE_MAX_SIZE', '50'))
 
 # 文件缓存目录
 _CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.api_cache')
 os.makedirs(_CACHE_DIR, exist_ok=True)
 
 # 缓存 TTL：默认 30 分钟（Render 免费实例 15 分钟休眠，30 分钟确保休眠后仍有效）
-_CACHE_TTL = int(os.getenv('API_CACHE_TTL', '1800'))
+_CACHE_TTL = int(os.getenv('API_CACHE_TTL', '900'))
 
 # 超时阈值：4.5 秒（Render 免费实例约 5 秒超时）
 _TIMEOUT_SECONDS = float(os.getenv('API_TIMEOUT', '4.5'))
@@ -149,13 +149,42 @@ def _time_limit(seconds: float):
     yield lambda: time.time() - start > seconds
 
 
+# ============================================================
+# 重计算并发护栏（防止客户端超时后线程堆积、内存触顶卡死）
+# ============================================================
+# 背景：本服务端点为同步 def，运行在 anyio 线程池；客户端（scheduler）
+# 120s 超时断开后，服务端正在重计算的线程【不会被取消】，仍继续持有全天
+# 帖子全文 / jieba / SnowNLP / LLM 等大对象。若此时重跑，多个重计算线程
+# 并发、内存叠加，会突破 MemoryHigh 触发内核节流、公开端点挂起。两道护栏：
+#   1) 信号量：同时进行的 cache-miss 重计算总数有上限（默认 2）；
+#   2) Single-flight：相同 cache_key 的并发 miss 只计算一次，其余共享结果。
+_HEAVY_MAX_CONCURRENCY = max(1, int(os.getenv('HEAVY_MAX_CONCURRENCY', '2')))
+_heavy_semaphore = threading.BoundedSemaphore(_HEAVY_MAX_CONCURRENCY)
+_inflight_lock = threading.Lock()
+_inflight_event = {}   # cache_key -> Event（计算结束标志，不分成功/失败）
+# 等待 / 抢信号量的上限（秒）：略小于客户端 120s，让等待者能在客户端超时前降级
+_WAIT_SECONDS = float(os.getenv('HEAVY_WAIT_SECONDS', '110'))
+
+
+def _cache_or_fallback(cache_key, fallback, tag):
+    """计算未就绪/失败时的统一降级：先缓存、再 fallback，都没有则抛超时。"""
+    cached = _get_cache(cache_key)
+    if cached is not None:
+        print(f'[FALLBACK] {tag}：使用缓存数据')
+        return cached, True
+    if fallback is not None:
+        print(f'[FALLBACK] {tag}：使用降级数据')
+        return fallback, True
+    return None, False
+
+
 def _safe_call(func, *args, cache_key=None, fallback=None, **kwargs):
     """
-    带超时保护和缓存回退的函数调用
+    带缓存、重计算并发护栏（信号量 + single-flight）和降级回退的统一调用。
 
     Args:
-        func: 要执行的函数
-        cache_key: 缓存 key（用于超时后回退）
+        func: 要执行的重计算函数
+        cache_key: 缓存 key（同时用作 single-flight 去重键）
         fallback: 最终降级数据
     """
     # 先查缓存
@@ -164,30 +193,73 @@ def _safe_call(func, *args, cache_key=None, fallback=None, **kwargs):
         if cached is not None:
             return cached
 
-    # 执行函数，监控耗时
+    # 无 cache_key 的调用不纳入护栏，直接执行（保持原行为）
+    if not cache_key:
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            if fallback is not None:
+                return fallback
+            raise
+
+    # ---- Single-flight 协调：相同 key 只允许一个 owner 计算 ----
+    is_owner = False
+    with _inflight_lock:
+        ev = _inflight_event.get(cache_key)
+        if ev is None:
+            ev = threading.Event()
+            _inflight_event[cache_key] = ev
+            is_owner = True
+
+    if not is_owner:
+        # 等待者：阻塞等同一结果，不重复加载数据（owner 成功会先写缓存再置位）
+        if ev.wait(timeout=_WAIT_SECONDS):
+            data, ok = _cache_or_fallback(cache_key, fallback, '同key计算已结束')
+            if ok:
+                return data
+            raise RuntimeError(f'heavy compute for {cache_key} failed with no cache')
+        # 等待超时：owner 仍在算（结束后会写缓存）；本请求不叠加并发，直接降级
+        data, ok = _cache_or_fallback(cache_key, fallback, f'同key计算超过{_WAIT_SECONDS:.0f}s')
+        if ok:
+            return data
+        raise TimeoutError(f'heavy compute for {cache_key} still running')
+
+    # ---- Owner：先抢信号量（限总并发），再执行重计算 ----
+    if not _heavy_semaphore.acquire(timeout=_WAIT_SECONDS):
+        # 重计算并发已满且长时间不释放：放弃本次重计算（不新增内存压力），降级
+        with _inflight_lock:
+            ev.set()
+            _inflight_event.pop(cache_key, None)
+        data, ok = _cache_or_fallback(cache_key, fallback,
+                                      f'重计算并发已满({_HEAVY_MAX_CONCURRENCY})')
+        if ok:
+            return data
+        raise TimeoutError('heavy compute concurrency limit reached')
+
     start = time.time()
     try:
         result = func(*args, **kwargs)
         elapsed = time.time() - start
         if elapsed > _TIMEOUT_SECONDS:
             print(f'[WARN] 接口耗时 {elapsed:.1f}s 超过阈值 {_TIMEOUT_SECONDS}s，但已完成')
-        if cache_key:
-            _set_cache(cache_key, result)
+        _set_cache(cache_key, result)   # 先写缓存（等待者随后即可命中）
         return result
     except Exception as e:
         elapsed = time.time() - start
         print(f'[ERROR] 接口执行失败 ({elapsed:.1f}s): {e}')
-        # 回退到缓存
-        if cache_key:
-            cached = _get_cache(cache_key)
-            if cached is not None:
-                print(f'[FALLBACK] 使用缓存数据')
-                return cached
-        # 最终降级
-        if fallback is not None:
-            print(f'[FALLBACK] 使用降级数据')
-            return fallback
+        data, ok = _cache_or_fallback(cache_key, fallback, '计算异常')
+        if ok:
+            return data
         raise
+    finally:
+        # 再通知等待者（此时成功路径的缓存已就绪），清理 inflight，释放信号量
+        with _inflight_lock:
+            ev.set()
+            _inflight_event.pop(cache_key, None)
+        try:
+            _heavy_semaphore.release()
+        except ValueError:
+            pass
 
 
 # ============================================================
@@ -264,10 +336,80 @@ def _classify_ai_category(topic, content):
     return 'news'
 
 
+# ---------- 评论级轻量情感（替代 SnowNLP） ----------
+# SnowNLP 在 import 时一次性加载全套模型（POS HMM 等）常驻约 410MB，小机会被
+# MemoryHigh 节流拖垮；改用词典 + 否定反转，内存近乎为 0。按最长词挖空，避免
+# “很好用”被“好用/好”重复计数。
+_CMT_NEGATORS = ('没有', '不是', '不会', '不能', '没法', '难以',
+                  '没', '不', '无', '别', '未', '莫', '甭')
+_CMT_POS_WORDS = (
+    '强烈推荐', '值得推荐', '值得买', '非常满意', '很满意', '好评如潮', '好评',
+    '很好用', '太好用', '真好用', '挺好用', '非常好', '特别好', '很好',
+    '太棒了', '太好了', '厉害了', '真香', '绝绝子', 'yyds', '黑科技',
+    '爱了爱了', '爱了', '牛批', '牛逼', '好用', '实用', '流畅', '清晰',
+    '稳定', '给力', '惊艳', '惊喜', '优秀', '完美', '值得', '推荐', '满意', '方便',
+    '高效', '强大', '智能', '喜欢', '期待', '感谢', '支持', '不错', '舒服',
+    '顺手', '省心', '先进', '创新', '提升', '棒', '赞', '牛', '强', '稳',
+)
+_CMT_NEG_WORDS = (
+    '不好用', '很难用', '不能用', '没法用', '用不了', '打不开', '闪退',
+    '崩溃', '报错', '卡死了', '卡死', '卡顿', '智商税', '割韭菜', '虚假宣传',
+    '上当受骗', '上当', '被骗', '后悔买', '后悔', '人工智障', '拉胯', '拉跨',
+    '差评如潮', '差评', '垃圾', '糟糕', '失望', '投诉', '难用', '讨厌',
+    '反对', '废物', '不满', '问题', '恶心', '无语', '智障', '骗人', '坑人',
+    'bug', '烂', '差', '慢', '贵', '坑', '烦', '假', '弱',
+)
+
+
+# 否定检测：从情感词向前，穿过副词/虚词（是、很、什么、特别、有…）找否定字；
+# 遇分句标点或其它实词即停（避免把上一分句的否定误套到本词）。
+_NEG_CHARS = set('不没无未莫甭')
+_NEG_FILLERS = set('是很太什么怎那这么大算够再已还真特别十分非常如何点的有别')
+
+
+def _negated_before(t, idx):
+    j = idx - 1
+    while j >= 0:
+        ch = t[j]
+        if ch in '，。；！？、,.!?;:':
+            return False
+        if ch in _NEG_CHARS:
+            return True
+        if ch not in _NEG_FILLERS:
+            return False
+        j -= 1
+    return False
+
+
+def _comment_sentiment_label(text):
+    """单条评论三分类（positive/neutral/negative）：轻量词典 + 否定反转。"""
+    if not text:
+        return 'neutral'
+    t = text.lower()
+    work = t
+    pos = neg = 0
+    words = [(w, 1) for w in _CMT_POS_WORDS] + [(w, -1) for w in _CMT_NEG_WORDS]
+    for w, base in sorted(words, key=lambda x: -len(x[0])):
+        idx = work.find(w)
+        while idx != -1:
+            cur = -base if _negated_before(t, idx) else base
+            if cur > 0:
+                pos += 1
+            else:
+                neg += 1
+            work = work[:idx] + '\u0000' * len(w) + work[idx + len(w):]
+            idx = work.find(w)
+    if pos > neg:
+        return 'positive'
+    if neg > pos:
+        return 'negative'
+    return 'neutral'
+
+
 def _enrich_post_ai_fields(posts, comments_per_post=6):
     """为热点帖子补真实 AI 字段（不改表结构，结果随热点接口缓存）：
     - category: 基于真实话题/正文的确定性 AI 类目
-    - sentiment: 基于该帖高赞评论的 SnowNLP 情感多数标签（positive/neutral/negative；无有效评论为 None）
+    - sentiment: 基于该帖高赞评论的轻量情感多数标签（positive/neutral/negative；无有效评论为 None）
     - ai_status: 评论是否已完成采集（done/pending，来自 comment_crawl_status）
     """
     if not posts:
@@ -297,33 +439,17 @@ def _enrich_post_ai_fields(posts, comments_per_post=6):
         t = (r.get('content') or '').strip()
         if t:
             grouped.setdefault(r['weibo_id'], []).append(t)
-    try:
-        from snownlp import SnowNLP
-    except Exception:
-        SnowNLP = None
+    from collections import Counter
     for p in posts:
         wid = p.get('weibo_id')
         m = meta.get(wid, {})
         p['category'] = _classify_ai_category(m.get('topic'), p.get('content'))
-        label = None
         comments = grouped.get(wid, [])
-        if SnowNLP and comments:
-            pos = neu = neg = 0
-            for text in comments:
-                try:
-                    sc = SnowNLP(text).sentiments
-                except Exception:
-                    continue
-                if sc > 0.6:
-                    pos += 1
-                elif sc >= 0.4:
-                    neu += 1
-                else:
-                    neg += 1
-            if pos + neu + neg:
-                label = max((('positive', pos), ('neutral', neu), ('negative', neg)),
-                            key=lambda x: x[1])[0]
-        p['sentiment'] = label
+        if comments:
+            votes = [_comment_sentiment_label(text) for text in comments]
+            p['sentiment'] = Counter(votes).most_common(1)[0][0]
+        else:
+            p['sentiment'] = None
         p['ai_status'] = 'done' if m.get('comment_crawl_status') == 1 else 'pending'
     return posts
 
@@ -625,7 +751,12 @@ def get_hot_weibo(limit: int = 20, min_engagement: int = 0,
 
         # A natural-day report ranks every eligible post. Ranking only the
         # first limit*5 posts by raw engagement can omit higher hotspot scores.
-        query_limit_sql = '' if date_sql else 'LIMIT %s'
+        # 自然日日报：正常日子加载全部符合帖以保证排名完整；极端日子候选过多时，
+        # 只取按总互动量排序的前若干条，避免无界加载全文撑爆小内存（SQL 已按
+        # 互动量 DESC，热点分由赞/评/转加权构成，较大候选池足以覆盖 top limit）。
+        _date_candidate_cap = max(limit * 6, int(os.getenv('API_DATE_CANDIDATE_CAP', '120')))
+        query_limit_sql = 'LIMIT %s'
+        query_limit_n = _date_candidate_cap if date_sql else limit * 5
         sql = f"""
             SELECT weibo_id, user_id, username, content, publish_time,
                    like_count, comment_count, repost_count, url
@@ -641,8 +772,7 @@ def get_hot_weibo(limit: int = 20, min_engagement: int = 0,
             {query_limit_sql}
         """
         params = [min_engagement] + ds_params + kw_params + date_params + time_params + fresh_params + relevance_params
-        if query_limit_sql:
-            params.append(limit * 5)
+        params.append(query_limit_n)
         posts = db.fetch_all(sql, tuple(params))
         # Count the exact same eligible set; the old count included rejected noise.
         count_sql = f"""
@@ -791,8 +921,8 @@ def get_sentiment(sample_size: int = 500, keyword: str = None,
                   dataset_type: Optional[str] = None, date: Optional[str] = None):
     """
     情感分析（优化版）
-    - 默认采样 500 条（原 3000）
-    - 使用轻量关键词匹配 + 少量 SnowNLP 验证
+    - 默认采样 500 条（原 3000，上限 1000）
+    - 纯轻量关键词/词典匹配（jieba 按需加载），不依赖 SnowNLP
     - 双层缓存
     """
     # 限制最大采样量，防止传入过大值

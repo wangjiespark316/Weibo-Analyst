@@ -149,6 +149,28 @@ def load_schedule_config():
         return default
 
 
+# 离线预热：正式推送前，串行提前触发各租户 T-1 重端点、写热服务端缓存。
+# 预热在后台、单端点给更长超时；正式 run_tenant 时全部命中缓存、毫秒返回，
+# 从源头消除 120s ReadTimeout（10/4 日报推不出去的根因），也避免重跑堆积。
+WARMUP_CALL_TIMEOUT = float(os.getenv('WARMUP_CALL_TIMEOUT', '280'))
+
+
+def warmup_tenant_reports(tenant_keys, report_date):
+    """串行预热：一次一个租户，租户内 collect_all_data 再串行各端点，内存平滑。"""
+    from step9_scheduler.tenant_runner import collect_all_data
+    for idx, tk in enumerate(tenant_keys, 1):
+        print(f"[Warmup {idx}/{len(tenant_keys)}] 预热 {tk}（日期 {report_date}）...")
+        t0 = time.time()
+        try:
+            collect_all_data(tk, analysis_date=report_date,
+                             call_timeout=WARMUP_CALL_TIMEOUT)
+            print(f"[Warmup] {tk} 完成，耗时 {time.time()-t0:.1f}s（缓存已就绪）")
+        except Exception as e:
+            print(f"[Warmup] ⚠️ {tk} 预热未完成：{type(e).__name__}: {e}")
+            print("[Warmup] （不阻断；正式 run_tenant 会再试，服务端 single-flight 兜底）")
+        gc.collect()
+
+
 def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
                          report_date: str = None) -> list:
     """
@@ -220,6 +242,12 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
     print(f"[Scheduler] 执行时间：{now_str}")
     print(f"[Scheduler] 租户数量：{len(tenant_keys)}")
     print(f"[Scheduler] 飞书推送：{'启用' if FEISHU_ENABLED else '未启用'}（每租户仅 1 条）")
+    print("=" * 60)
+
+    # 正式推送前串行离线预热（写热服务端缓存），让 run_tenant 毫秒返回、不再 120s 超时
+    print(f"\n[Scheduler] 正式推送前离线预热（目标日 {report_date}）...")
+    warmup_tenant_reports(tenant_keys, report_date)
+    print("[Scheduler] 预热阶段结束，开始正式生成与推送")
     print("=" * 60)
 
     results = []

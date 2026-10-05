@@ -37,6 +37,7 @@ Thumbs.db
 # ===== 临时文件 =====
 *.tmp
 *.bak
+*.bak[0-9]*
 doc-fetch-resources/
 draft_*_folder/
 
