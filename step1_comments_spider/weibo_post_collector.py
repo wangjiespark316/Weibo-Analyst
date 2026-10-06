@@ -326,6 +326,19 @@ def resolve_day_window(target='today'):
     )
 
 
+def _norm_text(s):
+    """归一化文本：去所有空白 + 转小写，用于关键词字面命中判断。"""
+    return re.sub(r"\s+", "", str(s or "")).lower()
+
+
+def body_contains_keyword(content, keyword):
+    """
+    正文（去标签纯文本）是否字面命中关键词。
+    归一化后兼容空格/大小写变体，如 'work buddy'↔'WorkBuddy'、'AI 助手'↔'AI助手'。
+    """
+    return _norm_text(keyword) in _norm_text(content)
+
+
 # ============================================================
 # MySQL 存储（幂等 upsert）
 # ============================================================
@@ -684,7 +697,9 @@ def collect_and_store(user_id=None, keyword=None, max_posts=10,
 
 def collect_realtime_window(keywords, target='today', per_keyword=15, max_pages=6,
                             max_comments=50, comment_post_limit=30,
-                            fetch_comments_flag=True):
+                            fetch_comments_flag=True,
+                            keyword_max_pages=None, keyword_exclude=None,
+                            require_keyword_match=True):
     """
     实时流（type=61）自然日增量采集 + 窗口内帖子评论补采。
 
@@ -743,9 +758,12 @@ def collect_realtime_window(keywords, target='today', per_keyword=15, max_pages=
     try:
         for kw in keywords:
             got = 0
-            for page in range(1, max_pages + 1):
+            kw_pages = (keyword_max_pages or {}).get(kw, max_pages)
+            excludes = (keyword_exclude or {}).get(kw, [])
+            query = kw + "".join(" -" + w for w in excludes)
+            for page in range(1, kw_pages + 1):
                 try:
-                    mbs = fetch_realtime_search(kw, page=page)
+                    mbs = fetch_realtime_search(query, page=page)
                 except Exception as e:
                     stats['fail'] += 1
                     _LOGGER.warning(f"  ⚠️ 「{kw}」第{page}页请求异常: {type(e).__name__}: {e}")
@@ -763,6 +781,9 @@ def collect_realtime_window(keywords, target='today', per_keyword=15, max_pages=
                         continue
                     if day_start <= pt < day_end:
                         wid = pd['weibo_id']
+                        # 正文须字面命中主词，过滤微博插入的「相关推荐」噪声
+                        if require_keyword_match and not body_contains_keyword(pd.get('content'), kw):
+                            continue
                         if wid and wid not in seen and got < per_keyword:
                             seen.add(wid)
                             window_posts.append((mb, kw))
@@ -892,6 +913,9 @@ def main():
     max_pages = args.max_pages if args.max_pages is not None else cfg.get('max_pages', 6)
     per_keyword = args.max_posts if args.max_posts is not None else cfg.get('per_keyword', max_posts)
     comment_post_limit = cfg.get('comment_post_limit', 30)
+    keyword_max_pages = cfg.get('keyword_max_pages', {})
+    keyword_exclude = cfg.get('keyword_exclude', {})
+    require_keyword_match = cfg.get('require_keyword_match', True)
 
     _LOGGER.info("=" * 60)
     _LOGGER.info("微博帖子+评论采集（配置驱动）")
@@ -911,6 +935,8 @@ def main():
             keywords, target=target, per_keyword=per_keyword, max_pages=max_pages,
             max_comments=max_comments, comment_post_limit=comment_post_limit,
             fetch_comments_flag=fetch_comments_flag,
+            keyword_max_pages=keyword_max_pages, keyword_exclude=keyword_exclude,
+            require_keyword_match=require_keyword_match,
         )
         # 用户时间线（配置了 users 时仍走旧通道，与自然日窗口独立）
         for uid in users:

@@ -18,6 +18,16 @@
   "collect_target": "today",
   "per_keyword": 10,
   "max_pages": 4,
+  "require_keyword_match": true,
+  "keyword_max_pages": {
+    "AI助手": 2,
+    "ChatGPT": 2,
+    "大模型": 2,
+    "AI办公": 2
+  },
+  "keyword_exclude": {
+    "WorkBuddy": ["肯德基"]
+  },
   "comment_post_limit": 18,
   "collect_times": ["09:00", "11:30", "14:00", "16:30", "19:00", "22:00"],
   "report_time": "08:30",
