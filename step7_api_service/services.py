@@ -658,7 +658,8 @@ def _llm_select_and_cluster(posts):
         "以下是候选微博（[序号] id=微博ID）：\n"
         f"{catalog}\n\n"
         "请输出 {\"keep\":[{\"index\": 序号, \"event\": \"一句话事件名\"}]}；"
-        "同一事件只保留一条；宁精勿滥，没有真正 AI 内容时 keep 输出空数组 []。"
+        "同一事件只保留一条；只保留当天最核心、信息量大的 AI 行业事件，最多 10 条；"
+        "可留可不留的一律不留；没有真正 AI 内容时 keep 输出空数组 []。"
     )
     data = _llm_chat_json(system_prompt, user_prompt)
     if not data:

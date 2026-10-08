@@ -1,6 +1,7 @@
 """Idempotent T-1 AI daily Top 10 sync to the Feishu Base table."""
 
 import fcntl
+import json
 import os
 import re
 import time
@@ -137,6 +138,33 @@ def _fields(post):
     }
 
 
+def _freeze_authority(date, posts):
+    """落表后冻结当次权威 id 全集，作为每日核对的同源基准 logs/frozen_hot/<date>.json。"""
+    frozen_dir = PROJECT_ROOT / 'logs' / 'frozen_hot'
+    frozen_dir.mkdir(parents=True, exist_ok=True)
+    ids = []
+    for post in posts:
+        post_id = _post_id(post.get('url'))
+        if post_id and post_id not in ids:
+            ids.append(post_id)
+    payload = {
+        'date': date,
+        'frozen_at': datetime.now(BJ_TZ).isoformat(),
+        'dataset_type': 'ai_industry',
+        'review_pool': 25,
+        'output_top': 10,
+        'keyword': None,
+        'count': len(ids),
+        'ids': ids,
+    }
+    target = frozen_dir / f'{date}.json'
+    tmp = frozen_dir / f'{date}.json.tmp'
+    with open(tmp, 'w', encoding='utf-8') as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    os.replace(tmp, target)
+    return str(target)
+
+
 def sync_yesterday(dry_run=False, date=None):
     if not date:
         date = (datetime.now(BJ_TZ).date() - timedelta(days=1)).isoformat()
@@ -147,16 +175,20 @@ def sync_yesterday(dry_run=False, date=None):
     lock_path.parent.mkdir(exist_ok=True)
     with open(lock_path, 'w') as lock_file:
         fcntl.flock(lock_file, fcntl.LOCK_EX)
-        # Marker mtime creates a fresh API cache key after the final crawl.
-        result = get_hot_weibo(limit=10, dataset_type='ai_industry',
-                               keyword=KEYWORDS, date=date,
+        # 权威口径=相关性宽召回（无显式关键词硬过滤），由 ai_industry 相关性正则
+        # + LLM 清洗把关；marker mtime 作为最终补采后的缓存键。落表与核对同源。
+        result = get_hot_weibo(limit=25, dataset_type='ai_industry',
+                               keyword=None, date=date,
                                cache_version=str(marker.stat().st_mtime_ns))
         if 'total_count' not in result:
             raise RuntimeError('Hot Weibo query failed; no Base rows written')
+        # LLM 在 25 条评审池上做相关性/聚簇（视野足够，不漏热度稍低的核心事件）；
+        # 最终确定性封顶 10 条（data 已按热度降序）。
+        posts = (result.get('data') or [])[:10]
         token = _token()
         existing = _existing_ids(token)
         created = skipped = 0
-        for post in result.get('data') or []:
+        for post in posts:
             post_id = _post_id(post.get('url'))
             if not post_id:
                 raise RuntimeError('Hot Weibo item has no canonical detail URL')
@@ -168,8 +200,11 @@ def sync_yesterday(dry_run=False, date=None):
                                     json={'fields': _fields(post)})
             existing.add(post_id)
             created += 1
-        return {'date': date, 'selected': len(result.get('data') or []),
-                'created': created, 'skipped': skipped, 'dry_run': dry_run}
+        frozen_path = (_freeze_authority(date, posts)
+                       if not dry_run else None)
+        return {'date': date, 'selected': len(posts),
+                'created': created, 'skipped': skipped, 'dry_run': dry_run,
+                'frozen': frozen_path}
 
 
 if __name__ == '__main__':

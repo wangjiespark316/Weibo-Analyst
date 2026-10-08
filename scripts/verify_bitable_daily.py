@@ -17,6 +17,8 @@ EXPECT = int(os.environ.get("EXPECT_COUNT", "10"))  # 仅在接口基准不可�
 API_YESTERDAY = os.environ.get(
     "API_YESTERDAY_URL", "http://127.0.0.1:8082/data/hot-yesterday")
 PREFIX = os.environ.get("MSG_PREFIX", "")
+FROZEN_DIR = os.environ.get(
+    "FROZEN_DIR", "/opt/Weibo-Analyst/logs/frozen_hot")
 LOG = "/opt/Weibo-Analyst/logs/verify_bitable.log"
 BJ = datetime.timezone(datetime.timedelta(hours=8))
 
@@ -130,32 +132,22 @@ def wid(x):
     return m[-1] if m else ""
 
 
-def fetch_expect():
-    """以 hot-yesterday 接口实际返回为"应写入"基准。
-    返回 (expect_n, expect_ids)；接口不可用时返回 (None, set())。"""
+def fetch_expect(target):
+    """以落表任务冻结的权威快照为"应写入"基准（与落表同源，避免两套漂移集合对账）。
+    返回 (expect_n, expect_ids, missing)；冻结快照缺失时 missing=True。"""
+    path = os.path.join(FROZEN_DIR, target + ".json")
+    if not os.path.isfile(path):
+        log("WARN fetch_expect: frozen snapshot missing: %s" % path)
+        return None, set(), True
     try:
-        req = urllib.request.Request(
-            API_YESTERDAY, method="GET",
-            headers={"User-Agent": "Mozilla/5.0 (weibo-verify/1.0)"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            d = json.loads(r.read().decode("utf-8"))
-        arr = d.get("data")
-        if isinstance(arr, dict):
-            arr = arr.get("records") or arr.get("data")
-        if not isinstance(arr, list):
-            return None, set()
-        ids = set()
-        for x in arr:
-            if isinstance(x, dict):
-                w = wid(x.get("weibo_id")) or wid(x.get("url"))
-            else:
-                w = wid(x)
-            if w:
-                ids.add(w)
-        return len(arr), ids
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        ids = set(str(x) for x in (payload.get("ids") or []))
+        n = int(payload.get("count") or len(ids))
+        return n, ids, False
     except Exception as e:
         log("WARN fetch_expect: %s" % e)
-        return None, set()
+        return None, set(), True
 
 
 def send(token, chat, text):
@@ -179,8 +171,8 @@ def main():
     now = datetime.datetime.now(BJ)
     target = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # 以 hot-yesterday 接口实际返回为"应写入"基准（条数随当天真 AI 事件浮动）
-    expect_n, expect_ids = fetch_expect()
+    # 以落表任务冻结的权威快照为"应写入"基准（与落表同源，条数随当天真 AI 事件浮动）
+    expect_n, expect_ids, frozen_missing = fetch_expect(target)
     items = fetch_all(token)
 
     rows = []
@@ -219,40 +211,40 @@ def main():
     base_missing = bool(n) and base_ok != n
     count_missing = count_extra = False
     if n == 0:
-        hard.append("目标日 %s 无任何记录，09:05 定时工作流可能未执行/端点异常" % target)
+        hard.append("目标日 %s 无任何记录，落表任务可能未执行/未稳定" % target)
     else:
         if dup:
             hard.append("目标日链接重复：%d 条记录仅 %d 个唯一链接" % (n, uniq))
         if base_missing:
             hard.append("基础字段缺失：仅 %d/%d 条齐全" % (base_ok, n))
+        if frozen_missing:
+            hard.append("权威冻结快照缺失：落表任务可能未执行/未稳定，无法做同源完整性核验")
         if expect_n is not None:
             missing = sorted(expect_ids - got_ids)
             extra = sorted(got_ids - expect_ids)
             count_missing, count_extra = bool(missing), bool(extra)
             if missing:
-                hard.append("接口基准 %d 条，表内缺 %d 条（id 尾号 %s），数据可能未就绪/被截断"
+                hard.append("权威快照 %d 条，表内缺 %d 条（id 尾号 %s），落表可能漏写"
                             % (expect_n, len(missing),
                                ",".join(x[-6:] for x in missing[:5])))
             if extra:
-                hard.append("表内比接口基准多 %d 条（id 尾号 %s），疑似重复/多写入"
+                hard.append("表内比权威快照多 %d 条（id 尾号 %s），疑似多写入"
                             % (len(extra), ",".join(x[-6:] for x in extra[:5])))
 
     ai_warn = bool(n) and ai_ok < n
     if ai_warn:
         soft.append("AI 字段仍在生成：%d/%d 条完成（异步，可稍后复查）" % (ai_ok, n))
-    if expect_n is None and n:
-        soft.append("无法获取接口基准条数，完整性未能核验，建议人工复查")
 
     if hard:
         verdict, icon = "FAILED", "❌"
-    elif ai_warn or expect_n is None:
+    elif ai_warn:
         verdict, icon = "WARNING", "⚠️"
     else:
         verdict, icon = "SUCCESS", "✅"
-    benchmark = ("接口基准 %d 条" % expect_n) if expect_n is not None \
-        else "接口基准不可用（兜底期望 %d）" % EXPECT
+    benchmark = ("权威快照 %d 条" % expect_n) if expect_n is not None \
+        else "权威冻结快照缺失"
     count_icon = ("✅" if (expect_n is not None and n == expect_n)
-                  else ("⚠️" if expect_n is None else "❌"))
+                  else ("⚠️" if (expect_n is None and n == 0) else "❌"))
     base_label = ("%d" % expect_n) if expect_n is not None else "?"
 
     dist_str = " ".join("%s:%d" % (k, v) for k, v in sorted(dist.items()))

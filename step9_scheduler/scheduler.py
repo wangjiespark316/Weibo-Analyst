@@ -125,6 +125,61 @@ def run_data_crawl(target: str = 'today'):
     return False
 
 
+def _daily_candidate_fingerprint(report_date, top=30):
+    """目标日"通过 AI 相关性正则、按互动量排序的前 top 候选"的确定性指纹（不调 LLM）。
+    补采返回不等于数据已抓全（搜索分页覆盖受限），用该指纹判断持续采集是否已追上。"""
+    import hashlib
+    from step7_api_service.services import db, _AI_RELEVANT_SQL_RE
+    d0 = datetime.strptime(report_date, '%Y-%m-%d')
+    d1 = d0 + timedelta(days=1)
+    sql = (
+        'SELECT weibo_id, like_count, comment_count, repost_count '
+        'FROM weibo_posts '
+        'WHERE publish_time >= %s AND publish_time < %s '
+        'AND LOWER(content) REGEXP %s '
+        'ORDER BY (like_count + comment_count + repost_count) DESC '
+        'LIMIT %s')
+    rows = db.fetch_all(
+        sql, (d0.strftime('%Y-%m-%d %H:%M:%S'),
+              d1.strftime('%Y-%m-%d %H:%M:%S'),
+              _AI_RELEVANT_SQL_RE, top))
+    fp = hashlib.sha1('|'.join(
+        '%s:%s:%s:%s' % (r['weibo_id'], r['like_count'],
+                         r['comment_count'], r['repost_count'])
+        for r in rows).encode('utf-8')).hexdigest()
+    return fp, len(rows)
+
+
+def wait_daily_data_stable(report_date):
+    """轮询确定性候选指纹，连续一致才放行写 marker/落表，避免把未就绪快照固化进多维表
+    （10/6 缺2多3 FAILED 根因）。指纹不含 LLM，不受其随机性影响。
+    达到最大等待则按当前结果继续，不无限阻塞。"""
+    interval = int(os.getenv('STABLE_WAIT_SECONDS', '120'))
+    confirms = int(os.getenv('STABLE_CONFIRM_ROUNDS', '1'))
+    max_wait = int(os.getenv('STABLE_MAX_WAIT_MIN', '20')) * 60
+    started = time.time()
+    prev_fp, prev_n = _daily_candidate_fingerprint(report_date)
+    print(f'[Scheduler] 稳定闸门：初始候选 {prev_n} 条 fp={prev_fp[:10]}；'
+          f'需连续 {confirms} 轮一致（间隔 {interval}s，最多 {max_wait // 60} 分钟）')
+    same = 0
+    while time.time() - started < max_wait:
+        time.sleep(interval)
+        fp, n = _daily_candidate_fingerprint(report_date)
+        if n and fp == prev_fp:
+            same += 1
+            print(f'[Scheduler]   候选指纹一致 {same}/{confirms}（{n} 条）')
+            if same >= confirms:
+                print('[Scheduler] 数据已稳定，继续写 marker / 落表')
+                return True
+        else:
+            if fp != prev_fp:
+                print(f'[Scheduler]   候选变化（{prev_n} -> {n}），重新计时')
+            same = 0
+            prev_fp, prev_n = fp, n
+    print('[Scheduler]   稳定闸门达到最大等待，按当前结果继续，避免无限阻塞')
+    return False
+
+
 def load_schedule_config():
     """
     从 config/crawl_config.json 读取调度时刻：
@@ -202,6 +257,9 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
         if not run_data_crawl(target=report_date):
             print(f'[Scheduler] 补采 {report_date} 失败，停止日报生成和飞书推送，避免发布不完整数据')
             return []
+        # 补采返回不等于数据已抓全：等权威结果稳定后再写 marker/落表，
+        # 避免把未就绪快照固化（10/6 缺2多3 根因）。
+        wait_daily_data_stable(report_date)
         # 飞书工作流晚于本次补采运行；仅在成功后开放同日取数。
         ready_dir = os.path.join(PROJECT_ROOT, 'logs', 'crawl_ready')
         os.makedirs(ready_dir, exist_ok=True)
