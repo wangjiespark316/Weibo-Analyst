@@ -72,11 +72,6 @@ body::before{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* 桌面十字准星 cursor */
-@media (hover:hover) and (pointer:fine){
-  body,body a,body button{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg stroke='%2334E8B0' stroke-width='1' opacity='.85'%3E%3Cpath d='M13 0v8M13 18v8M0 13h8M18 13h8'/%3E%3Ccircle cx='13' cy='13' r='2.6' fill='none'/%3E%3Ccircle cx='13' cy='13' r='.8' fill='%2334E8B0' stroke='none'/%3E%3C/g%3E%3C/svg%3E") 13 13,crosshair;}
-}
-
 .wrap{position:relative;z-index:1;max-width:var(--wrap);margin:0 auto;padding:0 28px;}
 
 /* ============ 顶部状态栏 ============ */
