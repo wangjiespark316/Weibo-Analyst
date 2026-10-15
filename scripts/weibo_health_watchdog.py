@@ -163,6 +163,21 @@ def send(token, chat, text):
     return r if r else {"code": -99, "msg": raw[:200]}
 
 
+QR_SERVICE = "weibo-qr-login.service"
+
+
+def ensure_qr_login():
+    """Cookie 失效时幂等启动扫码登录恢复服务（systemd 已在跑则无操作）。"""
+    try:
+        p = subprocess.run(["systemctl", "start", QR_SERVICE],
+                           capture_output=True, text=True, timeout=30)
+        log("qr-login systemctl start rc=%s" % p.returncode)
+        if p.returncode != 0:
+            log("WARN qr-login start: %s" % (p.stderr or "")[:160])
+    except Exception as e:
+        log("WARN ensure_qr_login: %s" % e)
+
+
 def load_state():
     try:
         return json.load(open(STATE, encoding="utf-8"))
@@ -181,7 +196,8 @@ def save_state(state):
 ALERT_TEXT = {
     "COOKIE_INVALID":
         "⚠️ 微博 Cookie 登录态已失效（已连续多轮确认，非网络抖动），自动采集将无法获取数据。\n"
-        "请重新登录微博并更新服务器 .env 的 WEIBO_COOKIE（参考之前的更新流程）。",
+        "已自动推送扫码登录二维码到本群，请用微博 App「扫一扫」扫码并确认，"
+        "系统会自动写回 Cookie、重启采集并恢复（无需手动改 .env）。",
     "LINK_DOWN":
         "⚠️ 微博住宅链路异常：经住宅 socks5 隧道无法正常访问 m.weibo.cn。\n"
         "可能是隧道断开或微博固定IP已失效；隧道看门狗会自动尝试重连，"
@@ -226,6 +242,10 @@ def main():
         ts = now
 
     log("raw=%s status=%s cookie_fail_count=%s detail=%s" % (raw, status, count, detail))
+
+    # Cookie 确认失效：幂等启动扫码登录自动恢复服务（SUSPECT 阶段不打扰）
+    if status == "COOKIE_INVALID":
+        ensure_qr_login()
 
     # 通知判定（COOKIE_SUSPECT 静默，不打扰）
     text = None

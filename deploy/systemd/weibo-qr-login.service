@@ -1,0 +1,15 @@
+[Unit]
+Description=Weibo QR login auto-recovery (push QR to Feishu, wait scan, write cookie, restart)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/Weibo-Analyst
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/Weibo-Analyst/.venv/bin/python /opt/Weibo-Analyst/scripts/weibo_qr_login.py --daemon
+TimeoutStartSec=1500
+User=root
+
+[Install]
+WantedBy=multi-user.target
