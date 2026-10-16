@@ -4,8 +4,13 @@
 微博综合健康看门狗（云端，不依赖本地电脑）。
 定时经住宅 socks5 隧道(N100主/手机备)，带 Cookie 请求 m.weibo.cn/api/config，一次探测同时覆盖：
   1) 隧道是否可用；2) /etc/hosts 固定的微博 IP 是否仍有效；3) Cookie 登录态 (data.login)。
-仅在「状态变化」时由 codex-bridge 发飞书群：健康->异常发告警、异常->健康发恢复；
-同一异常持续超过 REMIND_AFTER 秒会再提醒一次，避免告警沉底。
+Cookie 失效的恢复策略（2026-09-16 改版）：
+  - 不再启动会向飞书群刷二维码的 weibo-qr-login daemon；
+  - 由 Mac launchd（tech.vertexlab.weibo-autoscan，每 10 分钟）幂等运行
+    auto_scan_full.sh，静默控制小米12 完成扫码并由服务器写回 Cookie；
+  - 失效后给 MAC_RECOVERY_GRACE 秒静默窗口，窗口内不打扰；超窗仍未恢复
+    （通常是 Mac 未开机/手机未连 Mac）才低频发一条飞书提示连接，恢复成功静默；
+  - LINK_DOWN 链路异常仍按状态变化/REMIND_AFTER 提醒。
 只用标准库 + curl（探测与发群均走 curl subprocess）。
 
 【2026-10-08 升级】区分「链路/网络层异常」与「Cookie 登录态失效」，避免隧道抖动误报 Cookie：
@@ -22,6 +27,9 @@ LOG = "/opt/Weibo-Analyst/logs/weibo_health.log"
 STATE = "/opt/Weibo-Analyst/logs/weibo_health.state"
 REMIND_AFTER = 6 * 3600
 COOKIE_FAIL_THRESHOLD = 3     # 连续多少个周期稳定 login=False 才判 Cookie 失效（每周期约10分钟）
+# 失效后由 Mac launchd 每 10 分钟幂等运行 auto_scan_full.sh（静默控制小米12 扫码）恢复，
+# 给 MAC_RECOVERY_GRACE 秒静默窗口；窗口内不打扰、不推码；超窗仍未恢复才提醒人工连接手机。
+MAC_RECOVERY_GRACE = 2 * 3600
 BASELINE_PROBE_RETRIES = 2    # 链路基线（不带Cookie）重试次数
 LOGIN_PROBE_RETRIES = 3       # 带 Cookie 登录探测重试次数
 RETRY_GAP = 3                 # 重试间隔秒数
@@ -163,19 +171,16 @@ def send(token, chat, text):
     return r if r else {"code": -99, "msg": raw[:200]}
 
 
+# 注意：旧实现在此处 systemctl start weibo-qr-login.service，该 daemon 会向飞书群刷约 8 张二维码。
+# 用户明确要求不要向群里推码。现改为：不在云端启动 daemon、不推码；
+# 恢复由 Mac 端 launchd（tech.vertexlab.weibo-autoscan，每 10 分钟）幂等运行
+# auto_scan_full.sh 静默控制小米12 完成扫码；这里仅记录日志等待 Mac 自动恢复。
 QR_SERVICE = "weibo-qr-login.service"
 
 
 def ensure_qr_login():
-    """Cookie 失效时幂等启动扫码登录恢复服务（systemd 已在跑则无操作）。"""
-    try:
-        p = subprocess.run(["systemctl", "start", QR_SERVICE],
-                           capture_output=True, text=True, timeout=30)
-        log("qr-login systemctl start rc=%s" % p.returncode)
-        if p.returncode != 0:
-            log("WARN qr-login start: %s" % (p.stderr or "")[:160])
-    except Exception as e:
-        log("WARN ensure_qr_login: %s" % e)
+    """Cookie 失效：不启动会刷码到群的 daemon，等待 Mac launchd 静默自动恢复。"""
+    log("cookie invalid: 等待 Mac launchd (auto_scan_full.sh) 静默扫码恢复，不启动 daemon 推码")
 
 
 def load_state():
@@ -196,8 +201,9 @@ def save_state(state):
 ALERT_TEXT = {
     "COOKIE_INVALID":
         "⚠️ 微博 Cookie 登录态已失效（已连续多轮确认，非网络抖动），自动采集将无法获取数据。\n"
-        "已自动推送扫码登录二维码到本群，请用微博 App「扫一扫」扫码并确认，"
-        "系统会自动写回 Cookie、重启采集并恢复（无需手动改 .env）。",
+        "Mac 自动扫码恢复（控制小米12）在 2 小时窗口内未成功，通常是 Mac 未开机或小米12 未连 Mac。\n"
+        "请保持 Mac 开机联网、小米12 与 Mac 同一 WiFi（或 USB 连接），系统会在 10 分钟内自动扫码恢复，"
+        "无需手动改 .env；恢复后自动停止提醒。",
     "LINK_DOWN":
         "⚠️ 微博住宅链路异常：经住宅 socks5 隧道无法正常访问 m.weibo.cn。\n"
         "可能是隧道断开或微博固定IP已失效；隧道看门狗会自动尝试重连，"
@@ -247,27 +253,28 @@ def main():
     if status == "COOKIE_INVALID":
         ensure_qr_login()
 
-    # 通知判定（COOKIE_SUSPECT 静默，不打扰）
+    # 通知判定（成功/恢复一律静默；COOKIE_SUSPECT 静默；
+    # COOKIE_INVALID 先给 Mac launchd 静默恢复窗口，超窗仍未恢复才低频提醒）
     text = None
-    if status == "HEALTHY":
-        if prev_status == "COOKIE_INVALID":
-            text = "✅ 微博登录态已恢复：Cookie 登录正常，自动采集可继续。\n恢复时间：%s" % \
-                   now_bj().strftime("%H:%M:%S")
-        elif prev_status == "LINK_DOWN":
-            text = "✅ 微博住宅链路已恢复：登录态正常，自动采集可继续。\n恢复时间：%s" % \
-                   now_bj().strftime("%H:%M:%S")
-    elif status in ("LINK_DOWN", "COOKIE_INVALID"):
+    if status == "LINK_DOWN":
         first = prev_status != status
         remind = (now - last_notify_ts >= REMIND_AFTER) if last_notify_ts else True
         if first or remind:
-            if status == "LINK_DOWN":
-                text = ALERT_TEXT["LINK_DOWN"] + "\n探测时间：%s\n详情：%s" % (
-                    now_bj().strftime("%Y-%m-%d %H:%M"), detail)
-            else:
-                mins = max(1, int((now - ts) // 60))
+            text = ALERT_TEXT["LINK_DOWN"] + "\n探测时间：%s\n详情：%s" % (
+                now_bj().strftime("%Y-%m-%d %H:%M"), detail)
+    elif status == "COOKIE_INVALID":
+        elapsed = now - ts
+        if elapsed < MAC_RECOVERY_GRACE:
+            log("cookie invalid within Mac recovery grace window (%ds/%ds), silent" % (
+                int(elapsed), MAC_RECOVERY_GRACE))
+        else:
+            remind = (now - last_notify_ts >= REMIND_AFTER) if last_notify_ts else True
+            if remind:
+                mins = max(1, int(elapsed // 60))
                 text = ALERT_TEXT["COOKIE_INVALID"] + \
-                       "\n已连续约 %s 分钟、经 %s 轮探测确认登录态为未登录。\n探测时间：%s\n详情：%s" % (
+                       "\n已连续约 %s 分钟、经 %s 轮探测确认未登录。\n探测时间：%s\n详情：%s" % (
                            mins, count, now_bj().strftime("%Y-%m-%d %H:%M"), detail)
+    # HEALTHY（含从异常恢复）一律静默，不打扰用户。
 
     new_last_notify = last_notify_ts
     if text is not None:
