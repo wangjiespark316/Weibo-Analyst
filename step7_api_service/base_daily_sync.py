@@ -56,9 +56,23 @@ def _request_with_retry(method, url, token=None, max_retries=3, **kwargs):
         except requests.HTTPError as exc:
             last_exc = exc
             status = getattr(exc.response, 'status_code', 0)
-            if status in _RETRY_STATUS and attempt < max_retries - 1:
-                time.sleep(2 ** attempt)  # 1s, 2s, 4s
+            body_snip = ''
+            try:
+                body_snip = (exc.response.text or '')[:300]
+            except Exception:
+                pass
+            # 飞书偶发在连续写入时返回瞬时 HTTP 400（同数据稍后重试即成功），
+            # 仅对写请求(POST)的 400 有限重试；GET 与确定性字段错误仍快速失败。
+            transient_400 = (method.upper() == 'POST' and status == 400)
+            if (status in _RETRY_STATUS or transient_400) and attempt < max_retries - 1:
+                print(f'[base_sync] {method} {status} 第{attempt+1}次失败，'
+                      f'{2 ** attempt}s 后重试。body={body_snip}')
+                time.sleep(2 ** attempt)
                 continue
+            if body_snip:
+                raise requests.HTTPError(
+                    f'{exc} | feishu_body={body_snip}',
+                    response=exc.response, request=exc.request)
             raise
         except (requests.ConnectionError, requests.Timeout) as exc:
             last_exc = exc
@@ -198,6 +212,7 @@ def sync_yesterday(dry_run=False, date=None):
             if not dry_run:
                 _request_with_retry('POST', f'{API_ROOT}/records', token,
                                     json={'fields': _fields(post)})
+                time.sleep(0.25)  # 条间小延迟，降低连续写入触发飞书瞬时 400
             existing.add(post_id)
             created += 1
         frozen_path = (_freeze_authority(date, posts)
