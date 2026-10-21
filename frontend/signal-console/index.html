@@ -2,13 +2,27 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>WEIBO SIGNAL · AI 讨论信号观测台</title>
 <meta name="description" content="汇集微博公开讨论，实时观测 AI 行业的热点、趋势与情绪。数据按北京时间自然日更新。" />
+<meta name="robots" content="index,follow" />
+<meta name="theme-color" content="#0A1210" />
+<meta name="color-scheme" content="dark" />
+<meta name="author" content="WEIBO SIGNAL" />
+<link rel="canonical" href="https://weibo.vertexlab.tech/" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://weibo.vertexlab.tech/" />
+<meta property="og:site_name" content="WEIBO SIGNAL" />
+<meta property="og:title" content="WEIBO SIGNAL · AI 讨论信号观测台" />
+<meta property="og:description" content="汇集微博公开讨论，实时观测 AI 行业的热点、趋势与情绪。数据按北京时间自然日更新。" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="WEIBO SIGNAL · AI 讨论信号观测台" />
+<meta name="twitter:description" content="汇集微博公开讨论，实时观测 AI 行业的热点、趋势与情绪。数据按北京时间自然日更新。" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A1210'/%3E%3Cpath d='M5 17h3l2-6 3 12 3-15 3 9h3' fill='none' stroke='%2334E8B0' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://miaoda.feishu.cn" crossorigin />
+<link rel="preconnect" href="https://sf3-scmcdn-cn.feishucdn.com" crossorigin />
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
-<link rel="stylesheet" href="style.css?v=obs2" />
+<link rel="stylesheet" href="style.css?v=obs3" />
 </head>
 <body>
 
@@ -45,11 +59,11 @@
     <p class="hero-sub">汇集微博公开讨论，实时追踪 AI 行业的热点、趋势与情绪。数据按北京时间自然日更新；昨日榜单在每日补采完成后发布。</p>
 
     <div class="controls">
-      <div class="seg" role="tablist" aria-label="时间范围">
-        <button class="seg-btn is-active" id="tab-today" role="tab" aria-selected="true">今日</button>
-        <button class="seg-btn" id="tab-yesterday" role="tab" aria-selected="false">昨日全日</button>
+      <div class="seg" id="tablist" role="tablist" aria-label="时间范围">
+        <button class="seg-btn is-active" id="tab-today" role="tab" aria-selected="true" aria-controls="panel-posts" tabindex="0">今日</button>
+        <button class="seg-btn" id="tab-yesterday" role="tab" aria-selected="false" aria-controls="panel-posts" tabindex="-1">昨日全日</button>
       </div>
-      <button class="btn-refresh" id="btn-refresh">
+      <button class="btn-refresh" id="btn-refresh" aria-busy="false">
         <svg class="refresh-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11A8 8 0 0 0 6.3 6.3L4 8.5M4 4v4.5H8.5M4 13a8 8 0 0 0 13.7 4.7L20 15.5M20 20v-4.5H15.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>刷新观测</span>
       </button>
@@ -92,8 +106,9 @@
       </div>
     </div>
     <div class="wave-stage">
-      <canvas id="wave" aria-label="近7天AI讨论趋势波形"></canvas>
-      <div class="wave-readout" id="wave-readout">
+      <canvas id="wave" role="img" aria-label="近7天AI讨论帖子与评论数量趋势波形"></canvas>
+      <div class="stage-overlay" id="wave-overlay" hidden></div>
+      <div class="wave-readout" id="wave-readout" aria-live="polite" aria-atomic="false">
         <div class="wr-day" id="wr-day">—</div>
         <div class="wr-row"><span class="wr-dot legend-post"></span><span class="wr-k">帖子</span><span class="wr-v" id="wr-post">—</span></div>
         <div class="wr-row"><span class="wr-dot legend-comment"></span><span class="wr-k">评论</span><span class="wr-v" id="wr-comment">—</span></div>
@@ -112,7 +127,8 @@
       <span class="panel-tag" id="sent-sample-tag">抽样 —</span>
     </div>
 
-    <div class="gauge">
+    <div class="sentiment-body">
+    <div class="gauge" role="img" aria-label="评论情感正向、中性、负面占比分布">
       <div class="gauge-track">
         <div class="gauge-seg gauge-pos" id="gauge-pos"></div>
         <div class="gauge-seg gauge-neu" id="gauge-neu"></div>
@@ -133,10 +149,12 @@
       </div>
       <div class="spectrum-bars" id="neg-spectrum"></div>
     </div>
+    <div class="stage-overlay" id="sent-overlay" hidden></div>
+    </div>
   </section>
 
   <!-- ===== 热点电讯 ===== -->
-  <section class="panel posts-panel">
+  <section class="panel posts-panel" id="panel-posts" role="tabpanel" aria-labelledby="tab-today">
     <div class="panel-head">
       <div>
         <h2 class="panel-title">热点电讯</h2>
@@ -167,6 +185,6 @@
 
 </main>
 
-<script src="app.js?v=obs2"></script>
+<script src="app.js?v=obs3"></script>
 </body>
 </html>
