@@ -43,7 +43,7 @@
         state.hot[mode] = null;
         state.status[mode] = (e && e.status === 503) ? 'pending' : 'error';
       })
-      .then(function () { renderPosts(); renderReadouts(); stampUpdated(); });
+      .then(function () { renderModeScoped(); });
   }
 
   /* ---------------- 时钟 / 更新时间 ---------------- */
@@ -79,6 +79,21 @@
     $('updated').textContent = state.mode === 'today'
       ? '数据截至 ' + hm
       : '昨日 ' + hm + ' 定稿';
+  }
+  // 顶部状态徽章：今日为实时「观测中」，昨日为历史「已定稿」（停脉冲、转琥珀色）
+  function renderBadge() {
+    var isYesterday = state.mode === 'yesterday';
+    var badge = $('live-badge');
+    badge.classList.toggle('is-final', isYesterday);
+    badge.querySelector('.live-text').textContent = isYesterday ? '昨日定稿' : '观测中';
+  }
+  // 统一渲染所有「随今日/昨日切换」的视图，避免新增联动点时遗漏。
+  // 注意：波形（近 7 天）与情感（全局抽样）是固定窗口，不在此列。
+  function renderModeScoped() {
+    renderPosts();
+    renderReadouts();
+    stampUpdated();
+    renderBadge();
   }
 
   /* ---------------- 数字动画 ---------------- */
@@ -128,11 +143,26 @@
     }, 0);
   }
   function renderReadouts() {
+    var mode = state.mode;
     var t = state.trend, s = state.sentiment;
-    var today = state.hot.today;
-    var todayN = today ? (today.total !== undefined && today.total !== null ? today.total
-      : (today.data ? today.data.length : 0)) : null;
-    countUp($('post-count'), todayN, 900);
+    // 第一张「相关讨论」卡片随当前模式（今日 / 昨日）切换；
+    // 数值取该模式榜单实际条数（hot.total = 精筛后返回条数，与榜单一致），
+    // 不使用 hot.total_count（其为 SQL 粗筛口径，含被去重/相关性剔除的噪声，会与榜单不符）。
+    var hot = state.hot[mode];
+    var n = hot ? (hot.total !== undefined && hot.total !== null ? hot.total
+      : (hot.data ? hot.data.length : 0)) : null;
+    countUp($('post-count'), n, 900);
+    $('count-label').textContent = mode === 'today' ? '今日相关讨论' : '昨日相关讨论';
+    if (mode === 'today') {
+      $('count-note').textContent = '今日 00:00 起 · 持续更新';
+    } else if (state.status.yesterday === 'pending') {
+      $('count-note').textContent = '昨日补采中 · 稍后定稿';
+    } else if (hot) {
+      $('count-note').textContent = '昨日全日 · 已定稿';
+    } else {
+      $('count-note').textContent = '昨日数据加载中';
+    }
+    // 以下三项为固定窗口口径（近 7 天趋势 / 全局抽样情感），不随今日/昨日切换
     if (t) countUp($('mention-count'), sumTrend(t), 1200);
     if (s) {
       ratioUp($('positive-ratio'), s.positive_ratio, 1000);
@@ -519,8 +549,10 @@
     t.setAttribute('aria-selected', mode === 'today');
     y.classList.toggle('is-active', mode === 'yesterday');
     y.setAttribute('aria-selected', mode === 'yesterday');
+    // 未拉取过该模式则先发起请求；无论是否拉取，都立即按当前模式重渲染。
+    // 数据到达后 ensureHot 会再渲染一次（renderModeScoped 幂等）。
     if (state.status[mode] === null) ensureHot(mode);
-    else { renderPosts(); stampUpdated(); }
+    renderModeScoped();
   }
   $('tab-today').addEventListener('click', function () { switchMode('today'); });
   $('tab-yesterday').addEventListener('click', function () { switchMode('yesterday'); });
@@ -539,6 +571,7 @@
     ]).then(function () {
       stampUpdated();
       renderReadouts();
+      renderBadge();
       if (animateBtn) btn.classList.remove('is-loading');
     });
   }
@@ -569,7 +602,8 @@
   ]).then(function () {
     stampUpdated();
     renderReadouts();
+    renderBadge();
   });
-  // 首屏渲染繁忙可能吞掉读数动画，页面稳定后强制重算一次兜底
-  setTimeout(renderReadouts, 1500);
+  // 首屏渲染繁忙可能吞掉读数动画，页面稳定后强制重算一次兜底（含模式徽章）
+  setTimeout(function () { renderReadouts(); renderBadge(); }, 1500);
 })();
