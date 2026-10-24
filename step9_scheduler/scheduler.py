@@ -150,6 +150,61 @@ def _daily_candidate_fingerprint(report_date, top=30):
     return fp, len(rows)
 
 
+def _daily_ai_post_count(report_date):
+    """目标日全天已入库、通过 AI 相关性正则的帖子总数（确定性口径，不调 LLM）。"""
+    from step7_api_service.services import db, _AI_RELEVANT_SQL_RE
+    d0 = datetime.strptime(report_date, '%Y-%m-%d')
+    d1 = d0 + timedelta(days=1)
+    row = db.fetch_one(
+        'SELECT COUNT(*) c FROM weibo_posts '
+        'WHERE publish_time >= %s AND publish_time < %s AND LOWER(content) REGEXP %s',
+        (d0.strftime('%Y-%m-%d %H:%M:%S'), d1.strftime('%Y-%m-%d %H:%M:%S'),
+         _AI_RELEVANT_SQL_RE))
+    return int(row['c']) if row else 0
+
+
+def _recent_daily_baseline(report_date, days=7):
+    """前 N 个自然日 AI 帖子数的中位数（仅取有数据的天），作为当日应采量基线。"""
+    import statistics
+    counts = []
+    d = datetime.strptime(report_date, '%Y-%m-%d')
+    for i in range(1, days + 1):
+        c = _daily_ai_post_count((d - timedelta(days=i)).strftime('%Y-%m-%d'))
+        if c > 0:
+            counts.append(c)
+    return statistics.median(counts) if counts else 0
+
+
+def _notify_degraded(report_date, n, baseline, ratio):
+    """降级发布时给飞书群发送醒目告警（尽力而为，失败不阻断主流程）。"""
+    try:
+        import requests
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
+        app_id = os.getenv('FEISHU_APP_ID')
+        app_secret = os.getenv('FEISHU_APP_SECRET')
+        chat_id = os.getenv('FEISHU_CHAT_ID')
+        if not (app_id and app_secret and chat_id):
+            print('[Scheduler] 降级告警：缺少飞书凭据/群配置，跳过群通知')
+            return
+        tok = requests.post(
+            'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+            json={'app_id': app_id, 'app_secret': app_secret}, timeout=15
+        ).json().get('tenant_access_token')
+        msg = ('⚠️ 微博日报降级发布：%s 补采失败（可能 Cookie 失效/采集异常）。\n'
+               '当日已入库 %d 条，近7日基线约 %d 条，完整度约 %.0f%%；\n'
+               '已按现有数据降级生成并落表，最后采集窗口可能缺失，请尽快检查登录态/采集链路。'
+               % (report_date, n, int(baseline), ratio * 100))
+        requests.post(
+            'https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id',
+            headers={'Authorization': 'Bearer ' + tok},
+            json={'receive_id': chat_id, 'msg_type': 'text',
+                  'content': json.dumps({'text': msg})}, timeout=15)
+        print('[Scheduler] 降级告警已发送飞书群')
+    except Exception as e:
+        print(f'[Scheduler] 降级群告警发送失败（不阻断）: {type(e).__name__}: {e}')
+
+
 def wait_daily_data_stable(report_date):
     """轮询确定性候选指纹，连续一致才放行写 marker/落表，避免把未就绪快照固化进多维表
     （10/6 缺2多3 FAILED 根因）。指纹不含 LLM，不受其随机性影响。
@@ -254,9 +309,29 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
         if not ENABLE_CRAWL:
             print('[Scheduler] 采集已禁用，停止正式日报和飞书写入')
             return []
+        degrade_info = {}
         if not run_data_crawl(target=report_date):
-            print(f'[Scheduler] 补采 {report_date} 失败，停止日报生成和飞书推送，避免发布不完整数据')
-            return []
+            try:
+                _n = _daily_ai_post_count(report_date)
+                _base = _recent_daily_baseline(report_date)
+                _min_ratio = float(os.getenv('DEGRADED_MIN_RATIO', '0.5'))
+                _min_posts = int(os.getenv('DEGRADED_MIN_POSTS', '30'))
+                _ratio = (_n / _base) if _base else 0
+                print(f'[Scheduler] 补采 {report_date} 失败；当日已入库 AI 帖 {_n}，'
+                      f'近7日基线 {_base:.0f}，完整度 {_ratio:.0%}，'
+                      f'阈值 {_min_ratio:.0%}/≥{_min_posts}条')
+                if _n >= _min_posts and (_base == 0 or _ratio >= _min_ratio):
+                    degrade_info = {'degraded': True, 'ai_post_count': _n,
+                                   'baseline': _base, 'completeness': round(_ratio, 3),
+                                   'reason': 'crawl failed after retries; published with available data'}
+                    print('[Scheduler] ⚠️ 达到降级阈值，按现有数据继续生成/落表（最后采集窗口可能缺失）')
+                    _notify_degraded(report_date, _n, _base, _ratio)
+                else:
+                    print('[Scheduler] 当日数据过低，不降级发布，停止日报和飞书推送')
+                    return []
+            except Exception as _e:
+                print(f'[Scheduler] 降级评估异常（保守放弃）: {type(_e).__name__}: {_e}')
+                return []
         # 补采返回不等于数据已抓全：等权威结果稳定后再写 marker/落表，
         # 避免把未就绪快照固化（10/6 缺2多3 根因）。
         wait_daily_data_stable(report_date)
@@ -265,8 +340,10 @@ def generate_all_reports(tenant_filter: str = None, skip_crawl: bool = False,
         os.makedirs(ready_dir, exist_ok=True)
         marker = os.path.join(ready_dir, f'{report_date}.json')
         tmp_marker = marker + '.tmp'
+        _marker_data = {'date': report_date, 'completed_at': bj_now().isoformat()}
+        _marker_data.update(locals().get('degrade_info', {}) or {})
         with open(tmp_marker, 'w', encoding='utf-8') as ready_file:
-            json.dump({'date': report_date, 'completed_at': bj_now().isoformat()}, ready_file)
+            json.dump(_marker_data, ready_file, ensure_ascii=False)
         os.replace(tmp_marker, marker)
     else:
         print('[Scheduler] 跳过数据采集（--skip-crawl）')

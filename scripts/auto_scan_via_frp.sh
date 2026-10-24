@@ -87,10 +87,22 @@ dev_sh "mkdir -p /sdcard/Pictures/WeiboLogin; rm -f /sdcard/Pictures/WeiboLogin/
 dev_sh am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file:///sdcard/Pictures/WeiboLogin/qr.png" >/dev/null 2>&1
 sleep 1
 
-echo "== H) 打开扫一扫并选底部第一张二维码 =="
+echo "== H) 打开扫一扫并选最新二维码（动态解析控件）=="
 dev_sh am start -a android.intent.action.VIEW -d "sinaweibo://qrcode" >/dev/null 2>&1
-sleep 4
-dev_sh input tap 390 2080 >/dev/null 2>&1
+# 等待相机就绪（冷启动最多16秒），期间处理MIUI权限弹窗
+CAM_READY=0
+for ci in $(seq 1 8); do
+  sleep 2
+  ACT=$(topact)
+  if echo "$ACT" | grep -q "GrantPermissionsActivity"; then
+    dev_sh input tap 540 1850 >/dev/null 2>&1
+    sleep 2
+  fi
+  if echo "$ACT" | grep -q "TakePhotoActivity"; then CAM_READY=1; break; fi
+done
+if [ "$CAM_READY" != "1" ]; then echo "ABORT_NO_CAMERA"; topact; restore_screen; exit 22; fi
+# 动态解析相册网格：展开抽屉并点击第一张（最新二维码）
+python3 "$APP/scripts/ui_pick.py" || { echo "ABORT_UI_PICK"; topact; restore_screen; exit 22; }
 
 echo "== I) 轮询等待验证页(WeiboBrowser)，最多 24 秒 =="
 GOT_VERIFY=0
